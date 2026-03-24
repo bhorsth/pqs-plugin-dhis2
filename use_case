@@ -1,0 +1,16 @@
+MPV suggestion
+
+- Only for PQS type E003
+- Program: "Cold chain appliance lifecycle management - CCE" (pPHkq2q2OrH)
+- OU: "World Health Organization PQS catalogue" (tzOZlQkQYxv)
+- id: E003-023
+- hhttp://localhost:8080/
+- User: demo
+- Password: Stock123!
+- The PQS catalogue can be found in JSON format here: https://extranet.who.int/prequal/sites/default/files/immunization_devices/json/catalogs/immunization_devices_catalogue.json 
+
+User workflow
+1. Within the CCE Tracker program, initiates creation of a new "appliance"
+2. Using an enrollment plugin, the fields below should be populated from the PQS JSON in the link above. Using a "widget" or "program rule" in Capture, the user selects the device they are installing (through the widget or an enrollment field), by referencing the "Appliance PQS code", which then links to the PQS db and populates the relevant fields
+3. Remainig fields, grouped at the bottom of the enrollment page, are individual to the appliance and manually input by the user
+4. The image can be populated, only in the case that there is an available internet connection
