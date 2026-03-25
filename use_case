@@ -21,3 +21,9 @@ but this needs to be hidden in the enrollment page
 * Is it possible to have a drop down in the PQS code plugin field? (Possibly, but it may not have access
 to other parts of the system)
 * Use route manager app to configure the route to the JSON PQS file
+
+Agent 25.03.2026 
+Operational notes for you
+1. Configure Route Manager so GET /pqs-catalog/immunization_devices_catalogue.json on your DHIS2 host proxies the WHO JSON.
+2. In Capture, assign this plugin to the enrollment attribute you want (often a dedicated “picker” field); hide or replace the plain PQS code field in the form layout if you only want the picker visible—the plugin still writes RfZORQuqk3z.
+3. Appliance image is an IMAGE attribute: the plugin currently sets the image URL string; confirm on your instance whether Capture accepts that or if you need a follow-up (e.g. file upload API).
