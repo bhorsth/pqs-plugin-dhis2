@@ -6,7 +6,7 @@ const config = {
 
     entryPoints: {
         app: './src/App.jsx',
-        plugin: './src/Plugin.js',
+        plugin: './src/Plugin.tsx'
     },
 
     direction: 'auto',

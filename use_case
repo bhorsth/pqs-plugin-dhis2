@@ -14,3 +14,10 @@ User workflow
 2. Using an enrollment plugin, the fields below should be populated from the PQS JSON in the link above. Using a "widget" or "program rule" in Capture, the user selects the device they are installing (through the widget or an enrollment field), by referencing the "Appliance PQS code", which then links to the PQS db and populates the relevant fields
 3. Remainig fields, grouped at the bottom of the enrollment page, are individual to the appliance and manually input by the user
 4. The image can be populated, only in the case that there is an available internet connection
+
+Notes 25.03.2026 - JM, George, Breno
+* the PQS Code plugin form field needs to populate the PQS Code atribute, so that it can be used by the program,
+but this needs to be hidden in the enrollment page
+* Is it possible to have a drop down in the PQS code plugin field? (Possibly, but it may not have access
+to other parts of the system)
+* Use route manager app to configure the route to the JSON PQS file
