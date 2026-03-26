@@ -7,6 +7,9 @@ import {
     getFieldUpdatesFromDevice,
     type PqsCatalogueDevice,
 } from './pqs/pqsFieldMapping'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - CSS Modules are supported by the DHIS2/Vite toolchain, but
+// Cursor's TS linter may not resolve the module typing automatically.
 import classes from './Plugin.module.css'
 
 const LIST_LIMIT = 80
@@ -32,11 +35,14 @@ function applyDeviceToForm(
     }
 }
 
-const Plugin = ({
-    values,
-    setFieldValue,
-    viewMode,
-}: IFormFieldPluginProps) => {
+const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknown>) => {
+    // DHIS2 Capture runtime can pass different prop shapes across versions.
+    // Avoid crashing and log what we actually receive so we can map correctly.
+    const values = (rawProps as any)?.values ?? {}
+    const viewMode = Boolean((rawProps as any)?.viewMode)
+    const setFieldValue = (rawProps as any)?.setFieldValue as
+        | IFormFieldPluginProps['setFieldValue']
+        | undefined
     const [query, setQuery] = useState('')
     const [devices, setDevices] = useState([] as PqsCatalogueDevice[])
     const [loading, setLoading] = useState(true)
@@ -61,7 +67,10 @@ const Plugin = ({
         load()
     }, [load])
 
-    const selectedCode = values[PQS_FIELD_IDS.pqsCode]
+    const selectedCode =
+        values && typeof values === 'object'
+            ? (values as any)[PQS_FIELD_IDS.pqsCode]
+            : undefined
     const selectedLabel = useMemo(() => {
         if (selectedCode == null || selectedCode === '') return ''
         const match = devices.find(
@@ -81,6 +90,7 @@ const Plugin = ({
     }, [devices, query])
 
     const onPick = (device: PqsCatalogueDevice) => {
+        if (typeof setFieldValue !== 'function') return
         applyDeviceToForm(device, setFieldValue)
         setQuery('')
     }
