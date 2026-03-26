@@ -9,6 +9,18 @@ const config = {
         plugin: './src/Plugin.tsx'
     },
 
+    viteConfigExtensions: {
+        server: {
+            proxy: {
+                '/api': {
+                    target: 'http://localhost:8080',
+                    changeOrigin: true,
+                    secure: false,
+                },
+            },
+        },
+    },
+
     direction: 'auto',
 }
 

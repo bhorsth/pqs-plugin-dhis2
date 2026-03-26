@@ -57,6 +57,12 @@ describe('PQS Capture plugin', () => {
         process.env.VITE_PQS_CATALOG_URL = 'http://test.local/catalog.json'
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
+            headers: {
+                get: (name) =>
+                    name?.toLowerCase() === 'content-type'
+                        ? 'application/json'
+                        : null,
+            },
             json: async () => ({ e003: [minimalE003] }),
         })
         Object.defineProperty(navigator, 'onLine', {

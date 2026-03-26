@@ -5,8 +5,8 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
-"POT-Creation-Date: 2026-03-26T09:45:01.595Z\n"
-"PO-Revision-Date: 2026-03-26T09:45:01.599Z\n"
+"POT-Creation-Date: 2026-03-26T16:41:16.993Z\n"
+"PO-Revision-Date: 2026-03-26T16:41:16.995Z\n"
 
 msgid "ERROR"
 msgstr "ERROR"
@@ -19,11 +19,3 @@ msgstr "Hello {{name}}"
 
 msgid "Welcome to DHIS2!"
 msgstr "Welcome to DHIS2!"
-
-msgctxt "Application title"
-msgid "__MANIFEST_APP_TITLE"
-msgstr "pqs-plugin"
-
-msgctxt "Application description"
-msgid "__MANIFEST_APP_DESCRIPTION"
-msgstr ""

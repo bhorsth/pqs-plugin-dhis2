@@ -4,6 +4,9 @@
   "description": "",
   "license": "BSD-3-Clause",
   "private": true,
+  "engines": {
+    "node": ">=20 <21"
+  },
   "packageManager": "yarn@1.22.22",
   "scripts": {
     "build": "d2-app-scripts build",
