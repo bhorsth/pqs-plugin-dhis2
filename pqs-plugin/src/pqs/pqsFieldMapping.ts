@@ -2,9 +2,9 @@
  * CCE program: Cold chain appliance lifecycle management (pPHkq2q2OrH).
  * TE attribute IDs from /api/programs/pPHkq2q2OrH?fields=programTrackedEntityAttributes...
  *
- * | DHIS2 attribute (displayName)     | id          | PQS JSON source |
- * |-----------------------------------|-------------|-----------------|
- * | PQS code                          | RfZORQuqk3z | id / details["imd-pqs_code"] |
+ * | DHIS2 attribute (displayName)     | id / plugin alias | PQS JSON source |
+ * |-----------------------------------|---------------------|-----------------|
+ * | PQS code                          | RfZORQuqk3z → pqsCODE | id / details["imd-pqs_code"] |
  * | PQS category                      | rxgIKww28O2 | details.appliance_type |
  * | Type of appliance                 | oc5vHLl3NMW | details.product_description or product_name |
  * | Company                           | NIJQnrXOY2v | details.manufacturer |
@@ -19,17 +19,17 @@
 export const CCE_PROGRAM_ID = 'pPHkq2q2OrH'
 
 export const PQS_FIELD_IDS = {
-    pqsCode: 'RfZORQuqk3z',
-    pqsCategory: 'rxgIKww28O2',
-    typeOfAppliance: 'oc5vHLl3NMW',
-    company: 'NIJQnrXOY2v',
-    manufacturedIn: 'opV7LjgIyVk',
-    manufacturersReference: 'bmuypMIuzZV',
-    energySource: 'u1xxerCNyuK',
-    vaccineStorageCapacityL: 'ykkKy8bYHpU',
-    vaccineGrossVolumeL: 'tZDkrgw4MEB',
-    freezerGrossVolumeL: 'KDgzfJ5dzOz',
-    applianceImage: 'N6md61h88iS',
+    pqsCode: 'pqsCODE',
+    pqsCategory: 'pqsCAT',
+    typeOfAppliance: 'typeofAPP',
+    company: 'company',
+    manufacturedIn: 'manufIN',
+    manufacturersReference: 'manufREF',
+    energySource: 'energySOURCE',
+    vaccineStorageCapacityL: 'storageCAP',
+    vaccineGrossVolumeL: 'vaccGROSSV',
+    freezerGrossVolumeL: 'freezGROSSV',
+    applianceImage: 'imageURL',
 } as const
 
 export type PqsCatalogueDevice = {

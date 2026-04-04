@@ -25,5 +25,56 @@ to other parts of the system)
 Agent 25.03.2026 
 Operational notes for you
 1. Configure Route Manager so GET /pqs-catalog/immunization_devices_catalogue.json on your DHIS2 host proxies the WHO JSON.
-2. In Capture, assign this plugin to the enrollment attribute you want (often a dedicated “picker” field); hide or replace the plain PQS code field in the form layout if you only want the picker visible—the plugin still writes RfZORQuqk3z.
+2. In Capture, assign this plugin to the enrollment attribute you want (often a dedicated “picker” field); hide or replace the plain PQS code field in the form layout if you only want the picker visible—the plugin still writes the PQS code via the `pqsCODE` alias (TE attribute RfZORQuqk3z).
 3. Appliance image is an IMAGE attribute: the plugin currently sets the image URL string; confirm on your instance whether Capture accepts that or if you need a follow-up (e.g. file upload API).
+
+
+
+Here’s what’s going wrong: it’s almost certainly **not** `pqsFieldMapping.ts` logic—it’s how Capture **sandboxes** form field plugins.
+
+## 1. **Tracker Plugin Configurator: field access (most likely)**
+
+From the [DHIS2 form field plugin docs](https://developers.dhis2.org/docs/capture-plugins/developer/form-field-plugins/developer-details/):
+
+> A form field plugin runs in a **sandboxed** environment… If a plugin tries to **update a field that it has not been given access to**, an appropriate **error message will be displayed in the console**.
+
+So if only the attribute where the plugin is embedded is mapped, **`setFieldValue` for every other attribute is ignored** (or errors in the console). Nothing in TypeScript can fix that.
+
+**What’s missing:** In **Tracker Plugin Configurator**, open the plugin’s settings and add a **field map entry for every** TE attribute you want the plugin to set (PQS code, category, company, volumes, image, etc.). The reference implementation explains this under “Field mapping” ([reference-form-field-plugin README](https://github.com/dhis2/reference-form-field-plugin)): only mapped fields are readable/writable.
+
+---
+
+## 2. **`fieldId` must match the plugin alias, not necessarily the TE UID**
+
+The same README shows:
+
+- **`IdFromApp`** = DHIS2 tracked entity attribute id  
+- **`IdFromPlugin`** = string your plugin uses in `setFieldValue({ fieldId: ... })`
+
+The reference plugin uses **`fieldId: 'id'`**, not the DHIS2 id.
+
+Your code uses **TE attribute UIDs** (e.g. `RfZORQuqk3z`) as `fieldId`. That only works if **`IdFromPlugin` in the field map is exactly that UID** for each field. If the configurator uses short aliases (e.g. `pqsCode`, `company`), then you must call:
+
+`setFieldValue({ fieldId: 'pqsCode', value: ... })`
+
+—not `RfZORQuqk3z`. Keys in `values` are also those **aliases**, so reading `values[PQS_FIELD_IDS.pqsCode]` only works if the alias matches what you put in `PQS_FIELD_IDS`.
+
+**What’s missing (if aliases ≠ UIDs):** Align **`PQS_FIELD_IDS` / `setFieldValue` / `values[...]`** with whatever **`IdFromPlugin`** you configured for each attribute.
+
+---
+
+## 3. **Quick checks**
+
+1. Browser **DevTools → Console** on the enrollment form: look for Capture/plugin errors when you pick a device.  
+2. In **Tracker Plugin Configurator**, confirm **one row per field** you expect to auto-fill.  
+3. Confirm each **`IdFromPlugin`** matches the strings your plugin passes as `fieldId`.
+
+---
+
+## 4. **Image field (if that’s the only “broken” one)**
+
+For **IMAGE** attributes, `setFieldValue` expects an object like `{ value, name, url?, previewUrl? }`, not a bare URL string ([expected value types](https://developers.dhis2.org/docs/capture-plugins/developer/form-field-plugins/developer-details/)). That would affect only the image, not every field.
+
+---
+
+**Bottom line:** The usual gap is **Capture configuration**: **grant the plugin access to all target attributes in the field map**, and use **`fieldId` values that match `IdFromPlugin`** (not necessarily the raw attribute UIDs). Your mapping table in `pqsFieldMapping.ts` is still the right *semantic* mapping; the runtime needs the **configurator’s aliases** wired through.
