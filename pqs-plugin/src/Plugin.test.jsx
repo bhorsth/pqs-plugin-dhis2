@@ -82,20 +82,31 @@ describe('PQS Capture plugin', () => {
     it('calls setFieldValue starting with PQS code and includes mapped fields when a device is picked', async () => {
         const props = baseProps()
         const div = document.createElement('div')
+        document.body.appendChild(div)
         const root = createRoot(div)
         await act(async () => {
             root.render(<Plugin {...props} />)
         })
-        await flushPromises(30)
+        await flushPromises(80)
 
-        const item = div.querySelector('[role="option"]')
+        const input = div.querySelector('[data-test="pqs-combobox"]')
+        expect(input).toBeTruthy()
+
+        await act(async () => {
+            input.focus()
+        })
+        await flushPromises(20)
+
+        const item = document.querySelector('[data-test="pqs-suggestions"] [role="option"]')
         expect(item).toBeTruthy()
 
         await act(async () => {
             item.dispatchEvent(
-                new MouseEvent('click', { bubbles: true, cancelable: true })
+                new MouseEvent('mousedown', { bubbles: true, cancelable: true })
             )
         })
+
+        document.body.removeChild(div)
 
         expect(props.setFieldValue).toHaveBeenCalled()
         const firstCall = props.setFieldValue.mock.calls[0][0]
@@ -115,19 +126,29 @@ describe('PQS Capture plugin', () => {
         })
         const props = baseProps()
         const div = document.createElement('div')
+        document.body.appendChild(div)
         const root = createRoot(div)
         await act(async () => {
             root.render(<Plugin {...props} />)
         })
-        await flushPromises(30)
+        await flushPromises(80)
+
+        const input = div.querySelector('[data-test="pqs-combobox"]')
+        await act(async () => {
+            input.focus()
+        })
+        await flushPromises(20)
 
         await act(async () => {
-            div
-                .querySelector('[role="option"]')
-                .dispatchEvent(
-                    new MouseEvent('click', { bubbles: true, cancelable: true })
-                )
+            const item = document.querySelector(
+                '[data-test="pqs-suggestions"] [role="option"]'
+            )
+            item.dispatchEvent(
+                new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+            )
         })
+
+        document.body.removeChild(div)
 
         const fieldIds = props.setFieldValue.mock.calls.map((c) => c[0].fieldId)
         expect(fieldIds).not.toContain(PQS_FIELD_IDS.applianceImage)

@@ -1,4 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, {
+    useCallback,
+    useEffect,
+    useId,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react'
+import { createPortal } from 'react-dom'
 import { IFormFieldPluginProps } from './plugin.types'
 import { loadE003Devices, resolveCatalogUrl } from './pqs/loadCatalog'
 import {
@@ -13,6 +22,9 @@ import {
 import classes from './Plugin.module.css'
 
 const LIST_LIMIT = 80
+
+/** ~10 option rows at 14px text + padding (see `.suggestionItem` min-height) */
+const SUGGESTIONS_MAX_HEIGHT_PX = 360
 
 function shouldIncludeImage(): boolean {
     if (typeof navigator === 'undefined') return false
@@ -36,17 +48,26 @@ function applyDeviceToForm(
 }
 
 const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknown>) => {
-    // DHIS2 Capture runtime can pass different prop shapes across versions.
-    // Avoid crashing and log what we actually receive so we can map correctly.
     const values = (rawProps as any)?.values ?? {}
     const viewMode = Boolean((rawProps as any)?.viewMode)
     const setFieldValue = (rawProps as any)?.setFieldValue as
         | IFormFieldPluginProps['setFieldValue']
         | undefined
+
     const [query, setQuery] = useState('')
     const [devices, setDevices] = useState([] as PqsCatalogueDevice[])
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState(null as string | null)
+    const [panelOpen, setPanelOpen] = useState(false)
+    const [highlightedIndex, setHighlightedIndex] = useState(-1)
+    const [isFocused, setIsFocused] = useState(false)
+
+    const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const inputRef = useRef<HTMLInputElement>(null)
+    const [panelRect, setPanelRect] = useState({ top: 0, left: 0, width: 0 })
+    const reactId = useId()
+    const baseId = `pqs-${reactId.replace(/:/g, '')}`
+    const listboxId = `${baseId}-listbox`
 
     const catalogUrl = resolveCatalogUrl()
 
@@ -71,6 +92,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
         values && typeof values === 'object'
             ? (values as any)[PQS_FIELD_IDS.pqsCode]
             : undefined
+
     const selectedLabel = useMemo(() => {
         if (selectedCode == null || selectedCode === '') return ''
         const match = devices.find(
@@ -81,6 +103,13 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
         return match ? deviceLabel(match) : String(selectedCode)
     }, [devices, selectedCode])
 
+    useEffect(() => {
+        if (isFocused) return
+        const code =
+            selectedCode == null || selectedCode === '' ? '' : String(selectedCode)
+        setQuery(code ? selectedLabel : '')
+    }, [selectedCode, selectedLabel, isFocused])
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
         if (!q) return devices.slice(0, LIST_LIMIT)
@@ -89,16 +118,158 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
             .slice(0, LIST_LIMIT)
     }, [devices, query])
 
-    const onPick = (device: PqsCatalogueDevice) => {
-        if (typeof setFieldValue !== 'function') return
-        applyDeviceToForm(device, setFieldValue)
-        setQuery('')
+    const suggestions = useMemo(() => {
+        let list = filtered
+        const sel =
+            selectedCode != null && selectedCode !== ''
+                ? devices.find(
+                      (d) =>
+                          String(d.id) === String(selectedCode) ||
+                          String(d.details?.['imd-pqs_code']) ===
+                              String(selectedCode)
+                  )
+                : undefined
+        if (sel && !list.some((d) => d.id === sel.id)) {
+            list = [sel, ...list]
+        }
+        return list
+    }, [filtered, devices, selectedCode])
+
+    useEffect(() => {
+        setHighlightedIndex((h) => {
+            const n = suggestions.length
+            if (n === 0) return -1
+            if (h < 0) return 0
+            if (h >= n) return n - 1
+            return h
+        })
+    }, [suggestions])
+
+    const onPick = useCallback(
+        (device: PqsCatalogueDevice) => {
+            if (typeof setFieldValue !== 'function') return
+            applyDeviceToForm(device, setFieldValue)
+            setQuery(deviceLabel(device))
+            setPanelOpen(false)
+            setHighlightedIndex(-1)
+        },
+        [setFieldValue]
+    )
+
+    const clearBlurTimeout = () => {
+        if (blurTimeoutRef.current != null) {
+            clearTimeout(blurTimeoutRef.current)
+            blurTimeoutRef.current = null
+        }
     }
+
+    useEffect(
+        () => () => {
+            if (blurTimeoutRef.current != null) {
+                clearTimeout(blurTimeoutRef.current)
+            }
+        },
+        []
+    )
+
+    const updatePanelPosition = useCallback(() => {
+        const el = inputRef.current
+        if (!el) return
+        const r = el.getBoundingClientRect()
+        setPanelRect({
+            top: r.bottom + 2,
+            left: r.left,
+            width: r.width,
+        })
+    }, [])
+
+    useLayoutEffect(() => {
+        if (!panelOpen) return
+        updatePanelPosition()
+        const onMove = () => updatePanelPosition()
+        window.addEventListener('scroll', onMove, true)
+        window.addEventListener('resize', onMove)
+        return () => {
+            window.removeEventListener('scroll', onMove, true)
+            window.removeEventListener('resize', onMove)
+        }
+    }, [panelOpen, updatePanelPosition])
+
+    const handleFocus = () => {
+        clearBlurTimeout()
+        setIsFocused(true)
+        setPanelOpen(true)
+        setHighlightedIndex(suggestions.length > 0 ? 0 : -1)
+    }
+
+    const handleBlur = () => {
+        blurTimeoutRef.current = setTimeout(() => {
+            setIsFocused(false)
+            setPanelOpen(false)
+            setHighlightedIndex(-1)
+            blurTimeoutRef.current = null
+        }, 150)
+    }
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setQuery(e.target.value)
+        setPanelOpen(true)
+        setHighlightedIndex(0)
+    }
+
+    const pickHighlightedOrFirst = () => {
+        if (suggestions.length === 0) return
+        const i =
+            highlightedIndex >= 0 && highlightedIndex < suggestions.length
+                ? highlightedIndex
+                : 0
+        onPick(suggestions[i])
+    }
+
+    const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Escape') {
+            e.preventDefault()
+            setPanelOpen(false)
+            setHighlightedIndex(-1)
+            return
+        }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            if (!panelOpen) setPanelOpen(true)
+            setHighlightedIndex((prev) => {
+                const len = suggestions.length
+                if (len === 0) return -1
+                if (prev < 0) return 0
+                return Math.min(prev + 1, len - 1)
+            })
+            return
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            if (!panelOpen) setPanelOpen(true)
+            setHighlightedIndex((prev) => {
+                const len = suggestions.length
+                if (len === 0) return -1
+                if (prev <= 0) return 0
+                return prev - 1
+            })
+            return
+        }
+        if (e.key === 'Enter') {
+            e.preventDefault()
+            pickHighlightedOrFirst()
+        }
+    }
+
+    const activeDescendantId =
+        panelOpen && highlightedIndex >= 0 && suggestions[highlightedIndex]
+            ? `${baseId}-opt-${highlightedIndex}`
+            : undefined
 
     if (viewMode) {
         return (
             <div className={classes.wrap}>
-                <div className={classes.label}>PQS appliance (E003)</div>
+                <div className={classes.label}>PQS appliance</div>
                 <div className={classes.readonly} data-test="pqs-readonly">
                     {selectedLabel || '—'}
                 </div>
@@ -107,13 +278,14 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     }
 
     return (
-        <div className={classes.wrap}>
-            <div className={classes.label}>Select PQS appliance (E003)</div>
-            <p className={classes.meta}>
-                Sets PQS code and related attributes for program rules. PQS code
-                is written to the form; hide the default &quot;PQS code&quot;
-                field in Capture layout if you only want this picker visible.
-            </p>
+        <div
+            className={
+                panelOpen
+                    ? `${classes.wrap} ${classes.wrapElevated}`
+                    : classes.wrap
+            }
+        >
+            <div className={classes.label}>Select PQS appliance</div>
             {loading && <div className={classes.meta}>Loading catalogue…</div>}
             {loadError && (
                 <>
@@ -129,41 +301,69 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
             )}
             {!loading && !loadError && (
                 <>
-                    <input
-                        type="search"
-                        className={classes.search}
-                        placeholder="Search by PQS code or product name…"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        aria-label="Search PQS devices"
-                    />
-                    {selectedCode ? (
-                        <div className={classes.meta}>
-                            Selected: <strong>{selectedLabel}</strong>
-                        </div>
-                    ) : null}
-                    <ul className={classes.list} role="listbox">
-                        {filtered.map((d) => (
-                            <li
-                                key={d.id}
-                                role="option"
-                                tabIndex={0}
-                                className={classes.item}
-                                onClick={() => onPick(d)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault()
-                                        onPick(d)
-                                    }
+                    <div className={classes.combobox}>
+                        <input
+                            ref={inputRef}
+                            type="search"
+                            className={classes.search}
+                            data-test="pqs-combobox"
+                            placeholder="Search by PQS code or product name…"
+                            value={query}
+                            onChange={handleChange}
+                            onFocus={handleFocus}
+                            onBlur={handleBlur}
+                            onKeyDown={onKeyDown}
+                            role="combobox"
+                            aria-expanded={panelOpen}
+                            aria-controls={listboxId}
+                            aria-autocomplete="list"
+                            aria-activedescendant={activeDescendantId}
+                            autoComplete="off"
+                        />
+                    </div>
+                    {panelOpen &&
+                        typeof document !== 'undefined' &&
+                        createPortal(
+                            <ul
+                                id={listboxId}
+                                role="listbox"
+                                className={classes.suggestionsPortal}
+                                data-test="pqs-suggestions"
+                                style={{
+                                    top: panelRect.top,
+                                    left: panelRect.left,
+                                    width: Math.max(panelRect.width, 200),
+                                    maxHeight: SUGGESTIONS_MAX_HEIGHT_PX,
                                 }}
                             >
-                                {deviceLabel(d)}
-                            </li>
-                        ))}
-                    </ul>
-                    {filtered.length === 0 ? (
-                        <div className={classes.meta}>No matching devices.</div>
-                    ) : null}
+                                {suggestions.length === 0 ? (
+                                    <li className={classes.suggestionEmpty}>
+                                        No matching devices.
+                                    </li>
+                                ) : (
+                                    suggestions.map((d, i) => (
+                                        <li
+                                            key={d.id}
+                                            id={`${baseId}-opt-${i}`}
+                                            role="option"
+                                            aria-selected={highlightedIndex === i}
+                                            className={
+                                                highlightedIndex === i
+                                                    ? `${classes.suggestionItem} ${classes.suggestionHighlight}`
+                                                    : classes.suggestionItem
+                                            }
+                                            onMouseDown={(e) => {
+                                                e.preventDefault()
+                                                onPick(d)
+                                            }}
+                                        >
+                                            {deviceLabel(d)}
+                                        </li>
+                                    ))
+                                )}
+                            </ul>,
+                            document.body
+                        )}
                     {devices.length > LIST_LIMIT && !query.trim() ? (
                         <div className={classes.meta}>
                             Showing first {LIST_LIMIT} devices — type to narrow

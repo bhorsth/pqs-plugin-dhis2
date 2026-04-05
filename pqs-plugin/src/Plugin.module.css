@@ -3,12 +3,27 @@
     flex-direction: column;
     gap: 8px;
     max-width: 100%;
+    overflow: visible;
+}
+
+/* Lift entire plugin above adjacent Capture form fields while the list is open */
+.wrapElevated {
+    position: relative;
+    z-index: 100000;
+    isolation: isolate;
 }
 
 .label {
     font-size: 14px;
     font-weight: 600;
     color: #1d2125;
+}
+
+.combobox {
+    position: relative;
+    width: 100%;
+    overflow: visible;
+    z-index: 0;
 }
 
 .search {
@@ -20,33 +35,51 @@
     border-radius: 4px;
 }
 
-.list {
+/* Portaled to document.body — fixed below input, not clipped by Capture layout */
+.suggestionsPortal {
+    position: fixed;
+    z-index: 2147483647;
     margin: 0;
     padding: 0;
     list-style: none;
-    max-height: 220px;
+    box-sizing: border-box;
     overflow-y: auto;
     border: 1px solid #c9cbcf;
     border-radius: 4px;
     background: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.item {
+.suggestionItem {
     margin: 0;
     padding: 8px 10px;
     font-size: 14px;
+    line-height: 1.35;
+    min-height: 36px;
+    box-sizing: border-box;
     cursor: pointer;
     border-bottom: 1px solid #e8eaed;
 }
 
-.item:last-child {
+.suggestionItem:last-child {
     border-bottom: none;
 }
 
-.item:hover,
-.item:focus {
+.suggestionItem:hover,
+.suggestionItem:focus {
     background: #f0f7ff;
     outline: none;
+}
+
+.suggestionHighlight {
+    background: #e8f2ff;
+}
+
+.suggestionEmpty {
+    margin: 0;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #6e7a8a;
 }
 
 .meta {
