@@ -281,7 +281,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
         <div
             className={
                 panelOpen
-                    ? `${classes.wrap} ${classes.wrapElevated}`
+                    ? `${classes.wrap} ${classes.wrapElevated} ${classes.wrapPanelOpen}`
                     : classes.wrap
             }
         >

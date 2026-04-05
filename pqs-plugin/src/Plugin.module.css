@@ -4,6 +4,11 @@
     gap: 8px;
     max-width: 100%;
     overflow: visible;
+    padding-bottom: 16px;
+}
+
+.wrapPanelOpen {
+    padding-bottom: 160px;
 }
 
 /* Lift entire plugin above adjacent Capture form fields while the list is open */
