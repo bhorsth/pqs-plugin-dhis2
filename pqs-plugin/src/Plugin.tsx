@@ -38,12 +38,25 @@ function applyDeviceToForm(
     const updates = getFieldUpdatesFromDevice(device, {
         includeImage: shouldIncludeImage(),
     })
+    // #region agent log
+    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'pre-fix',hypothesisId:'H1',location:'Plugin.tsx:41',message:'Computed updates',data:{count:updates.length,types:updates.map(u=>({fieldId:u.fieldId,t:typeof u.value})),preview:updates.slice(0,8).map(u=>({fieldId:u.fieldId,value:String(u.value).slice(0,60)}))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
     for (const { fieldId, value } of updates) {
-        setFieldValue({
-            fieldId,
-            value,
-            options: { touched: true, valid: true },
-        })
+        const safeValue = typeof value === 'number' ? String(value) : value
+        // #region agent log
+        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'post-fix',hypothesisId:'H1',location:'Plugin.tsx:47',message:'Calling setFieldValue',data:{fieldId,valueType:typeof value,safeValueType:typeof safeValue,isNumber:typeof value==='number',valuePreview:String(value).slice(0,80),safeValuePreview:String(safeValue).slice(0,80)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
+        try {
+            setFieldValue({
+                fieldId,
+                value: safeValue,
+                options: { touched: true, valid: true },
+            })
+        } catch (e) {
+            // #region agent log
+            fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'post-fix',hypothesisId:'H3',location:'Plugin.tsx:58',message:'setFieldValue threw',data:{fieldId,error:String(e)},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion agent log
+        }
     }
 }
 
@@ -148,12 +161,15 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const onPick = useCallback(
         (device: PqsCatalogueDevice) => {
             if (typeof setFieldValue !== 'function') return
+            // #region agent log
+            fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'pre-fix',hypothesisId:'H2',location:'Plugin.tsx:onPick',message:'User picked device',data:{deviceId:device?.id,query,selectedCode},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion agent log
             applyDeviceToForm(device, setFieldValue)
             setQuery(deviceLabel(device))
             setPanelOpen(false)
             setHighlightedIndex(-1)
         },
-        [setFieldValue]
+        [setFieldValue, query, selectedCode]
     )
 
     const clearBlurTimeout = () => {
