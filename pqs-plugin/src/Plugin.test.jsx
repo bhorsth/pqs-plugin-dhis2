@@ -55,15 +55,41 @@ describe('PQS Capture plugin', () => {
     beforeEach(() => {
         clearCatalogCache()
         process.env.VITE_PQS_CATALOG_URL = 'http://test.local/catalog.json'
-        global.fetch = jest.fn().mockResolvedValue({
-            ok: true,
-            headers: {
-                get: (name) =>
-                    name?.toLowerCase() === 'content-type'
-                        ? 'application/json'
-                        : null,
-            },
-            json: async () => ({ e003: [minimalE003] }),
+        global.fetch = jest.fn().mockImplementation(async (url) => {
+            const u = String(url)
+            if (u === 'http://test.local/catalog.json') {
+                return {
+                    ok: true,
+                    headers: {
+                        get: (name) =>
+                            name?.toLowerCase() === 'content-type'
+                                ? 'application/json'
+                                : null,
+                    },
+                    json: async () => ({ e003: [minimalE003] }),
+                }
+            }
+            if (u.startsWith('/api/42/routes/S1CxnuYJebB/run/')) {
+                return {
+                    ok: true,
+                    headers: {
+                        get: (name) =>
+                            name?.toLowerCase() === 'content-type'
+                                ? 'image/jpeg'
+                                : null,
+                    },
+                    blob: async () => new Blob(['x'], { type: 'image/jpeg' }),
+                }
+            }
+            if (u === '/api/fileResources') {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        response: { fileResource: { id: 'abc123xyz' } },
+                    }),
+                }
+            }
+            throw new Error(`Unexpected fetch URL: ${u}`)
         })
         Object.defineProperty(navigator, 'onLine', {
             configurable: true,
@@ -105,6 +131,7 @@ describe('PQS Capture plugin', () => {
                 new MouseEvent('mousedown', { bubbles: true, cancelable: true })
             )
         })
+        await flushPromises(0)
 
         document.body.removeChild(div)
 
@@ -117,6 +144,14 @@ describe('PQS Capture plugin', () => {
         expect(fieldIds).toContain(PQS_FIELD_IDS.company)
         expect(fieldIds).toContain(PQS_FIELD_IDS.freezerGrossVolumeL)
         expect(fieldIds).toContain(PQS_FIELD_IDS.applianceImage)
+
+        const imageCalls = props.setFieldValue.mock.calls.filter(
+            (c) => c[0].fieldId === PQS_FIELD_IDS.applianceImage
+        )
+        expect(imageCalls.length).toBe(1)
+        expect(imageCalls[0][0].value).toEqual(
+            expect.objectContaining({ value: 'abc123xyz' })
+        )
     })
 
     it('does not set appliance image when offline', async () => {

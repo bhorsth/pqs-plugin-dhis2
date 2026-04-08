@@ -26,9 +26,109 @@ const LIST_LIMIT = 80
 /** ~10 option rows at 14px text + padding (see `.suggestionItem` min-height) */
 const SUGGESTIONS_MAX_HEIGHT_PX = 360
 
+// DHIS2 Route Manager: route id S1CxnuYJebB (example), served under /api/42/routes/{id}/run{path}
+const PQS_IMAGE_ROUTE_RUN_BASE = '/api/42/routes/S1CxnuYJebB/run'
+
 function shouldIncludeImage(): boolean {
     if (typeof navigator === 'undefined') return false
     return navigator.onLine
+}
+
+function filenameFromUrl(url: string): string | null {
+    try {
+        const u = new URL(url)
+        const last = u.pathname.split('/').filter(Boolean).pop()
+        return last && last.includes('.') ? last : null
+    } catch {
+        return null
+    }
+}
+
+function extFromContentType(contentType: string | null | undefined): string | null {
+    if (!contentType) return null
+    const t = contentType.split(';')[0]?.trim().toLowerCase()
+    if (t === 'image/jpeg' || t === 'image/jpg') return 'jpg'
+    if (t === 'image/png') return 'png'
+    if (t === 'image/gif') return 'gif'
+    if (t === 'image/webp') return 'webp'
+    return null
+}
+
+async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string; name: string }> {
+    const tryFetch = async (url: string) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H4',location:'Plugin.tsx:uploadImageToFileResource',message:'Fetching image',data:{url},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
+        const res = await fetch(url)
+        // #region agent log
+        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H4',location:'Plugin.tsx:uploadImageToFileResource',message:'Image fetch response',data:{url,ok:res.ok,status:res.status,ct:res.headers?.get?.('content-type')},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
+        return res
+    }
+
+    // Always use the DHIS2 route to avoid any direct CORS fetch attempt.
+    let proxiedPath = ''
+    try {
+        const u = new URL(imageUrl)
+        proxiedPath = u.pathname.startsWith('/') ? u.pathname : `/${u.pathname}`
+    } catch {
+        proxiedPath = ''
+    }
+    const proxied = `${PQS_IMAGE_ROUTE_RUN_BASE}${proxiedPath}`
+    // #region agent log
+    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H7',location:'Plugin.tsx:uploadImageToFileResource',message:'Constructed route proxy URL',data:{imageUrl,proxied},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+    let imageRes: Response = await tryFetch(proxied)
+    if (!imageRes.ok) {
+        throw new Error(`image_download_failed_${imageRes.status}`)
+    }
+    const contentType = imageRes.headers?.get?.('content-type') ?? null
+    if (contentType && !contentType.toLowerCase().startsWith('image/')) {
+        let bodyTextPreview: string | null = null
+        try {
+            bodyTextPreview = (await imageRes.clone().text()).slice(0, 400)
+        } catch {
+            bodyTextPreview = null
+        }
+        // #region agent log
+        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H5',location:'Plugin.tsx:uploadImageToFileResource',message:'Proxy returned non-image content-type',data:{contentType,bodyTextPreview},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
+        throw new Error(`image_proxy_not_image_${contentType}`)
+    }
+    const blob = await imageRes.blob()
+    const fromUrl = filenameFromUrl(imageUrl)
+    const ext = extFromContentType(contentType) ?? extFromContentType(blob.type) ?? 'jpg'
+    const name = fromUrl ?? `pqs.${ext}`
+    const file = new File([blob], name, { type: blob.type || contentType || '' })
+
+    const fd = new FormData()
+    fd.append('file', file)
+
+    const uploadRes = await fetch('/api/fileResources', {
+        method: 'POST',
+        body: fd,
+    })
+    // #region agent log
+    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H6',location:'Plugin.tsx:uploadImageToFileResource',message:'fileResources upload response',data:{ok:uploadRes.ok,status:uploadRes.status},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+    let uploadBodyPreview: string | null = null
+    try {
+        uploadBodyPreview = (await uploadRes.clone().text()).slice(0, 800)
+    } catch {
+        uploadBodyPreview = null
+    }
+    // #region agent log
+    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H6',location:'Plugin.tsx:uploadImageToFileResource',message:'fileResources upload body preview',data:{status:uploadRes.status,ct:uploadRes.headers?.get?.('content-type'),bodyPreview:uploadBodyPreview},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+    if (!uploadRes.ok) {
+        throw new Error(`fileResource_upload_failed_${uploadRes.status}`)
+    }
+    const json = await uploadRes.json()
+    const id = json?.response?.fileResource?.id
+    if (typeof id !== 'string' || id.length === 0) {
+        throw new Error('fileResource_upload_missing_id')
+    }
+    return { id, name }
 }
 
 function applyDeviceToForm(
@@ -36,7 +136,7 @@ function applyDeviceToForm(
     setFieldValue: IFormFieldPluginProps['setFieldValue']
 ): void {
     const updates = getFieldUpdatesFromDevice(device, {
-        includeImage: shouldIncludeImage(),
+        includeImage: false,
     })
     // #region agent log
     fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'pre-fix',hypothesisId:'H1',location:'Plugin.tsx:41',message:'Computed updates',data:{count:updates.length,types:updates.map(u=>({fieldId:u.fieldId,t:typeof u.value})),preview:updates.slice(0,8).map(u=>({fieldId:u.fieldId,value:String(u.value).slice(0,60)}))},timestamp:Date.now()})}).catch(()=>{});
@@ -74,10 +174,16 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const [panelOpen, setPanelOpen] = useState(false)
     const [highlightedIndex, setHighlightedIndex] = useState(-1)
     const [isFocused, setIsFocused] = useState(false)
+    const [imageStatus, setImageStatus] = useState(
+        'idle' as 'idle' | 'uploading' | 'error'
+    )
+    const [imageError, setImageError] = useState(null as string | null)
 
-    const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const inputRef = useRef<HTMLInputElement>(null)
+    const blurTimeoutRef = useRef(null as ReturnType<typeof setTimeout> | null)
+    const inputRef = useRef(null as HTMLInputElement | null)
     const [panelRect, setPanelRect] = useState({ top: 0, left: 0, width: 0 })
+    const imageCacheRef = useRef(new Map<string, { id: string; name: string }>())
+    const mountedRef = useRef(true)
     const reactId = useId()
     const baseId = `pqs-${reactId.replace(/:/g, '')}`
     const listboxId = `${baseId}-listbox`
@@ -100,6 +206,13 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     useEffect(() => {
         load()
     }, [load])
+
+    useEffect(() => {
+        mountedRef.current = true
+        return () => {
+            mountedRef.current = false
+        }
+    }, [])
 
     const selectedCode =
         values && typeof values === 'object'
@@ -168,6 +281,44 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
             setQuery(deviceLabel(device))
             setPanelOpen(false)
             setHighlightedIndex(-1)
+
+            const imageUrl = device?.main_image
+            if (
+                shouldIncludeImage() &&
+                typeof imageUrl === 'string' &&
+                imageUrl.length > 0
+            ) {
+                setImageStatus('uploading')
+                setImageError(null)
+
+                const cached = imageCacheRef.current.get(imageUrl)
+                const run = async () => {
+                    try {
+                        const { id, name } = cached ?? (await uploadImageToFileResource(imageUrl))
+                        if (!cached) imageCacheRef.current.set(imageUrl, { id, name })
+                        if (!mountedRef.current) return
+                        setFieldValue({
+                            fieldId: PQS_FIELD_IDS.applianceImage,
+                            value: {
+                                value: id,
+                                name,
+                                url: imageUrl,
+                                previewUrl: imageUrl,
+                            },
+                            options: { touched: true, valid: true },
+                        })
+                        setImageStatus('idle')
+                    } catch (e) {
+                        if (!mountedRef.current) return
+                        setImageStatus('error')
+                        setImageError(String(e))
+                    }
+                }
+                void run()
+            } else {
+                setImageStatus('idle')
+                setImageError(null)
+            }
         },
         [setFieldValue, query, selectedCode]
     )
@@ -227,7 +378,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
         }, 150)
     }
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: any) => {
         setQuery(e.target.value)
         setPanelOpen(true)
         setHighlightedIndex(0)
@@ -242,7 +393,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
         onPick(suggestions[i])
     }
 
-    const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const onKeyDown = (e: any) => {
         if (e.key === 'Escape') {
             e.preventDefault()
             setPanelOpen(false)
@@ -337,6 +488,12 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                             autoComplete="off"
                         />
                     </div>
+                    {imageStatus === 'uploading' ? (
+                        <div className={classes.meta}>Uploading image…</div>
+                    ) : null}
+                    {imageStatus === 'error' && imageError ? (
+                        <div className={classes.error}>Image upload failed.</div>
+                    ) : null}
                     {panelOpen &&
                         typeof document !== 'undefined' &&
                         createPortal(
