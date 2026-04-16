@@ -3,11 +3,14 @@ import type { PqsCatalogueDevice } from './pqsFieldMapping'
 const E003_KEY = 'e003'
 
 /**
- * Same-origin path for Route Manager on the DHIS2 instance (e.g. http://localhost:8080).
- * This Route Manager route executes the WHO catalogue fetch and returns the JSON.
+ * Same-origin path for the DHIS2 Route Manager proxy.
+ *
+ * We intentionally use the same Route Manager UID as the image proxy
+ * (`S1CxnuYJebB`) so both catalogue JSON and images share the same
+ * external base URL and routing config.
  */
 export const PQS_CATALOG_PATH =
-    '/api/routes/pqsCatalogue/run'
+    '/api/42/routes/S1CxnuYJebB/run/prequal/sites/default/files/immunization_devices/json/catalogs/immunization_devices_catalogue.json'
 
 /**
  * Resolves catalogue URL: optional `VITE_PQS_CATALOG_URL` (Jest/Node tooling),

@@ -78,3 +78,10 @@ For **IMAGE** attributes, `setFieldValue` expects an object like `{ value, name,
 ---
 
 **Bottom line:** The usual gap is **Capture configuration**: **grant the plugin access to all target attributes in the field map**, and use **`fieldId` values that match `IdFromPlugin`** (not necessarily the raw attribute UIDs). Your mapping table in `pqsFieldMapping.ts` is still the right *semantic* mapping; the runtime needs the **configurator’s aliases** wired through.
+
+15.04.2026 - JM, George, Breno
+TODO: 
+1. Add an attribute to the program to present the list of devices from a standard option set
+    a. Plugin reads that value from the option set
+2. Configuring the UIDs for the form fields, from the Tracker Configurator app
+3. Create a NameSpace with a log for errors (not priority), info can also be output to the console
