@@ -1,5 +1,16 @@
 This project was bootstrapped with [DHIS2 Application Platform](https://github.com/dhis2/app-platform).
 
+## Plugin configuration (multi-instance deployment)
+
+This repository contains a Capture **form field plugin** entry point (`plugin`) and a demo app entry point (`app`).
+
+To deploy the plugin across different DHIS2 instances without code changes, configure instance-specific artifacts via Tracker Plugin Configurator:
+
+- Route Manager route (proxying the WHO catalogue and images)
+- Field mapping (IdFromPlugin aliases → DHIS2 tracked entity attributes)
+
+See [`CONFIGURATION.md`](./CONFIGURATION.md).
+
 ## Available Scripts
 
 In the project directory, you can run:

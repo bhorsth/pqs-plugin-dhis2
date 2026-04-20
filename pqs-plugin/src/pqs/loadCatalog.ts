@@ -1,55 +1,66 @@
 import type { PqsCatalogueDevice } from './pqsFieldMapping'
-
-const E003_KEY = 'e003'
-
-/**
- * Same-origin path for the DHIS2 Route Manager proxy.
- *
- * We intentionally use the same Route Manager UID as the image proxy
- * (`S1CxnuYJebB`) so both catalogue JSON and images share the same
- * external base URL and routing config.
- */
-export const PQS_CATALOG_PATH =
-    '/api/42/routes/S1CxnuYJebB/run/prequal/sites/default/files/immunization_devices/json/catalogs/immunization_devices_catalogue.json'
+import { buildRouteRunBase, type RouteManagerConfig } from './dhis2Artifacts'
 
 /**
- * Resolves catalogue URL: optional `VITE_PQS_CATALOG_URL` (Jest/Node tooling),
- * otherwise `{origin}{PQS_CATALOG_PATH}` in the browser.
+ * Resolves a base URL for this browser/session.
+ * - Prefers injected `meta[name="dhis2-base-url"]` when present.
+ * - Falls back to app-shell env var when available.
+ * - In local dev, keeps `/api` requests same-origin so Vite proxy can forward.
  */
-export function resolveCatalogUrl(): string {
+export function resolveBaseUrl(): string {
+    if (typeof window === 'undefined') return ''
+
+    const metaBaseUrl = window.document
+        ?.querySelector?.('meta[name="dhis2-base-url"]')
+        ?.getAttribute?.('content')
+
+    const injectedBase =
+        metaBaseUrl && metaBaseUrl !== '__DHIS2_BASE_URL__'
+            ? new URL(metaBaseUrl, window.location.origin).href
+            : null
+
+    // In development, the app-shell injects DHIS2_BASE_URL via env vars
+    const shellBase = (globalThis as any)?.process?.env?.REACT_APP_DHIS2_BASE_URL
+    const envBase = typeof shellBase === 'string' && shellBase.length > 0 ? shellBase : null
+
+    const isLocalVite =
+        window.location.hostname === 'localhost' &&
+        (window.location.port === '3000' || window.location.port === '3001')
+
+    const devProxyBase = isLocalVite ? window.location.origin : null
+
+    return injectedBase ?? envBase ?? devProxyBase ?? window.location.origin
+}
+
+export function buildCatalogUrl(args: {
+    baseUrl: string
+    routeManager: RouteManagerConfig
+    catalogPath: string
+}): string {
+    const runBase = buildRouteRunBase(args.routeManager)
+    const p = args.catalogPath.startsWith('/') ? args.catalogPath : `/${args.catalogPath}`
+    return new URL(`${runBase}${p}`, args.baseUrl).href
+}
+
+/**
+ * Resolves catalogue URL:
+ * - Optional `VITE_PQS_CATALOG_URL` (Jest/Node tooling)
+ * - Otherwise use Route Manager run base + `catalogPath`
+ */
+export function resolveCatalogUrl(args: {
+    routeManager: RouteManagerConfig
+    catalogPath: string
+}): string {
     const fromEnv = (globalThis as any)?.process?.env?.VITE_PQS_CATALOG_URL
     if (typeof fromEnv === 'string' && fromEnv.length > 0) {
         return fromEnv
     }
-    if (typeof window !== 'undefined') {
-        const metaBaseUrl = window.document
-            ?.querySelector?.('meta[name=\"dhis2-base-url\"]')
-            ?.getAttribute?.('content')
-
-        const injectedBase =
-            metaBaseUrl && metaBaseUrl !== '__DHIS2_BASE_URL__'
-                ? new URL(metaBaseUrl, window.location.origin).href
-                : null
-
-        // In development, the app-shell injects DHIS2_BASE_URL via env vars
-        // (and `d2-app-scripts start --proxy` may point this at a local proxy server).
-        const shellBase = (globalThis as any)?.process?.env?.REACT_APP_DHIS2_BASE_URL
-        const envBase =
-            typeof shellBase === 'string' && shellBase.length > 0 ? shellBase : null
-
-        const isLocalVite =
-            window.location.hostname === 'localhost' &&
-            (window.location.port === '3000' || window.location.port === '3001')
-
-        // In local Vite development we use server.proxy (/api -> localhost:8080),
-        // so keep requests same-origin (localhost:3000/3001).
-        const devProxyBase = isLocalVite ? window.location.origin : null
-
-        const base = injectedBase ?? envBase ?? devProxyBase ?? window.location.origin
-
-        return new URL(PQS_CATALOG_PATH, base).href
-    }
-    return PQS_CATALOG_PATH
+    const baseUrl = resolveBaseUrl()
+    return buildCatalogUrl({
+        baseUrl,
+        routeManager: args.routeManager,
+        catalogPath: args.catalogPath,
+    })
 }
 
 export type LoadCatalogResult =
@@ -97,9 +108,13 @@ function normalizeDevice(raw: unknown): PqsCatalogueDevice | null {
 }
 
 /**
- * Fetches the full WHO catalogue JSON, keeps only `e003` (PQS type E003), caches per URL in memory.
+ * Fetches WHO catalogue JSON, keeps only a configured bucket key, caches per URL in memory.
  */
-export async function loadE003Devices(catalogUrl: string): Promise<LoadCatalogResult> {
+export async function loadBucketDevices(args: {
+    catalogUrl: string
+    bucketKey: string
+}): Promise<LoadCatalogResult> {
+    const { catalogUrl, bucketKey } = args
     if (memoryDevices && memoryUrl === catalogUrl) {
         return { ok: true, devices: memoryDevices }
     }
@@ -135,11 +150,11 @@ export async function loadE003Devices(catalogUrl: string): Promise<LoadCatalogRe
         if (!isRecord(json)) {
             return { ok: false, error: 'Catalog JSON is not an object' }
         }
-        const bucket = json[E003_KEY]
+        const bucket = json[bucketKey]
         if (!Array.isArray(bucket)) {
             return {
                 ok: false,
-                error: `Catalog has no "${E003_KEY}" array`,
+                error: `Catalog has no "${bucketKey}" array`,
             }
         }
         const devices: PqsCatalogueDevice[] = []

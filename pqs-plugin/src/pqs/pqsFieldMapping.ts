@@ -1,36 +1,20 @@
 /**
- * CCE program: Cold chain appliance lifecycle management (pPHkq2q2OrH).
- * TE attribute IDs from /api/programs/pPHkq2q2OrH?fields=programTrackedEntityAttributes...
- *
- * | DHIS2 attribute (displayName)     | id / plugin alias | PQS JSON source |
- * |-----------------------------------|---------------------|-----------------|
- * | PQS code                          | RfZORQuqk3z → pqsCODE | id / details["imd-pqs_code"] |
- * | PQS category                      | rxgIKww28O2 | details.appliance_type |
- * | Type of appliance                 | oc5vHLl3NMW | details.product_description or product_name |
- * | Company                           | NIJQnrXOY2v | details.manufacturer |
- * | Manufactured in                   | opV7LjgIyVk | details.country_of_manufacture |
- * | Manufacturer's reference          | bmuypMIuzZV | details.manufacturers_reference |
- * | Energy source                     | u1xxerCNyuK | specifications.product_specifications_main.energy_source |
- * | Vaccine storage capacity (litres) | ykkKy8bYHpU | refrigerator_vaccine_storage_capacity(l) or waterpack_storage_capacity_(litres) |
- * | Vaccine gross volume (litres)     | tZDkrgw4MEB | refrigerator's_gross_volume_(litres) |
- * | Freezer gross volume (litres)    | KDgzfJ5dzOz | freezer's_gross_volume_(litres) |
- * | Appliance image                   | N6md61h88iS | main_image (only when online; IMAGE type — verify on instance) |
+ * Semantic field keys for the plugin. The actual field identifiers are **plugin aliases**
+ * configured via Tracker Plugin Configurator (IdFromPlugin). Avoid hard-coding DHIS2 UIDs here.
  */
-export const CCE_PROGRAM_ID = 'pPHkq2q2OrH'
-
-export const PQS_FIELD_IDS = {
-    pqsCode: 'pqsCODE',
-    pqsCategory: 'pqsCAT',
-    typeOfAppliance: 'typeofAPP',
-    company: 'company',
-    manufacturedIn: 'manufIN',
-    manufacturersReference: 'manufREF',
-    energySource: 'energySOURCE',
-    vaccineStorageCapacityL: 'storageCAP',
-    vaccineGrossVolumeL: 'vaccGROSSV',
-    freezerGrossVolumeL: 'freezGROSSV',
-    applianceImage: 'imageURL',
-} as const
+export type PqsFieldIds = {
+    pqsCode: string
+    pqsCategory: string
+    typeOfAppliance: string
+    company: string
+    manufacturedIn: string
+    manufacturersReference: string
+    energySource: string
+    vaccineStorageCapacityL: string
+    vaccineGrossVolumeL: string
+    freezerGrossVolumeL: string
+    applianceImage: string
+}
 
 export type PqsCatalogueDevice = {
     id: string
@@ -59,6 +43,7 @@ function parseLitres(v: unknown): number | null {
  */
 export function getFieldUpdatesFromDevice(
     device: PqsCatalogueDevice,
+    fieldIds: PqsFieldIds,
     options: { includeImage: boolean }
 ): FieldUpdate[] {
     const d = device.details ?? {}
@@ -74,16 +59,16 @@ export function getFieldUpdatesFromDevice(
     const typeOfAppliance = str(d.product_description || d.product_name)
 
     const updates: FieldUpdate[] = [
-        { fieldId: PQS_FIELD_IDS.pqsCode, value: pqsCode },
-        { fieldId: PQS_FIELD_IDS.pqsCategory, value: str(d.appliance_type) },
-        { fieldId: PQS_FIELD_IDS.typeOfAppliance, value: typeOfAppliance },
-        { fieldId: PQS_FIELD_IDS.company, value: str(d.manufacturer) },
-        { fieldId: PQS_FIELD_IDS.manufacturedIn, value: str(d.country_of_manufacture) },
+        { fieldId: fieldIds.pqsCode, value: pqsCode },
+        { fieldId: fieldIds.pqsCategory, value: str(d.appliance_type) },
+        { fieldId: fieldIds.typeOfAppliance, value: typeOfAppliance },
+        { fieldId: fieldIds.company, value: str(d.manufacturer) },
+        { fieldId: fieldIds.manufacturedIn, value: str(d.country_of_manufacture) },
         {
-            fieldId: PQS_FIELD_IDS.manufacturersReference,
+            fieldId: fieldIds.manufacturersReference,
             value: str(d.manufacturers_reference),
         },
-        { fieldId: PQS_FIELD_IDS.energySource, value: str(main.energy_source) },
+        { fieldId: fieldIds.energySource, value: str(main.energy_source) },
     ]
 
     const vaccineStorage =
@@ -91,7 +76,7 @@ export function getFieldUpdatesFromDevice(
         parseLitres(fz['waterpack_storage_capacity_(litres)'])
     if (vaccineStorage != null) {
         updates.push({
-            fieldId: PQS_FIELD_IDS.vaccineStorageCapacityL,
+            fieldId: fieldIds.vaccineStorageCapacityL,
             value: vaccineStorage,
         })
     }
@@ -99,7 +84,7 @@ export function getFieldUpdatesFromDevice(
     const vaccineGross = parseLitres(fr["refrigerator's_gross_volume_(litres)"])
     if (vaccineGross != null) {
         updates.push({
-            fieldId: PQS_FIELD_IDS.vaccineGrossVolumeL,
+            fieldId: fieldIds.vaccineGrossVolumeL,
             value: vaccineGross,
         })
     }
@@ -107,14 +92,14 @@ export function getFieldUpdatesFromDevice(
     const freezerGross = parseLitres(fz["freezer's_gross_volume_(litres)"])
     if (freezerGross != null) {
         updates.push({
-            fieldId: PQS_FIELD_IDS.freezerGrossVolumeL,
+            fieldId: fieldIds.freezerGrossVolumeL,
             value: freezerGross,
         })
     }
 
     if (options.includeImage && device.main_image) {
         updates.push({
-            fieldId: PQS_FIELD_IDS.applianceImage,
+            fieldId: fieldIds.applianceImage,
             value: str(device.main_image),
         })
     }

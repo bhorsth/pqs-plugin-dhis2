@@ -9,13 +9,16 @@ import React, {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { IFormFieldPluginProps } from './plugin.types'
-import { loadE003Devices, resolveCatalogUrl } from './pqs/loadCatalog'
+import { loadBucketDevices, resolveCatalogUrl } from './pqs/loadCatalog'
+import { buildRouteRunBase } from './pqs/dhis2Artifacts'
 import {
-    PQS_FIELD_IDS,
     deviceLabel,
     getFieldUpdatesFromDevice,
+    type PqsFieldIds,
     type PqsCatalogueDevice,
 } from './pqs/pqsFieldMapping'
+import { parsePqsPluginConfig, readRawPluginConfig } from './pqs/pluginConfig'
+import { resolveFieldAliases } from './pqs/fieldResolver'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - CSS Modules are supported by the DHIS2/Vite toolchain, but
 // Cursor's TS linter may not resolve the module typing automatically.
@@ -25,9 +28,6 @@ const LIST_LIMIT = 80
 
 /** ~10 option rows at 14px text + padding (see `.suggestionItem` min-height) */
 const SUGGESTIONS_MAX_HEIGHT_PX = 360
-
-// DHIS2 Route Manager: route id S1CxnuYJebB (example), served under /api/42/routes/{id}/run{path}
-const PQS_IMAGE_ROUTE_RUN_BASE = '/api/42/routes/S1CxnuYJebB/run'
 
 function shouldIncludeImage(): boolean {
     if (typeof navigator === 'undefined') return false
@@ -55,14 +55,15 @@ function extFromContentType(contentType: string | null | undefined): string | nu
 }
 
 async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string; name: string }> {
+    // Route base is configured at runtime via Tracker Plugin Configurator.
+    // If missing, image upload should be disabled by config validation.
+    const routeRunBase = (globalThis as any).__PQS_ROUTE_RUN_BASE as string | undefined
+    if (typeof routeRunBase !== 'string' || routeRunBase.length === 0) {
+        throw new Error('route_manager_not_configured')
+    }
+
     const tryFetch = async (url: string) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H4',location:'Plugin.tsx:uploadImageToFileResource',message:'Fetching image',data:{url},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion agent log
         const res = await fetch(url)
-        // #region agent log
-        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H4',location:'Plugin.tsx:uploadImageToFileResource',message:'Image fetch response',data:{url,ok:res.ok,status:res.status,ct:res.headers?.get?.('content-type')},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion agent log
         return res
     }
 
@@ -74,10 +75,7 @@ async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string
     } catch {
         proxiedPath = ''
     }
-    const proxied = `${PQS_IMAGE_ROUTE_RUN_BASE}${proxiedPath}`
-    // #region agent log
-    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H7',location:'Plugin.tsx:uploadImageToFileResource',message:'Constructed route proxy URL',data:{imageUrl,proxied},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
+    const proxied = `${routeRunBase}${proxiedPath}`
     let imageRes: Response = await tryFetch(proxied)
     if (!imageRes.ok) {
         throw new Error(`image_download_failed_${imageRes.status}`)
@@ -90,9 +88,6 @@ async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string
         } catch {
             bodyTextPreview = null
         }
-        // #region agent log
-        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H5',location:'Plugin.tsx:uploadImageToFileResource',message:'Proxy returned non-image content-type',data:{contentType,bodyTextPreview},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion agent log
         throw new Error(`image_proxy_not_image_${contentType}`)
     }
     const blob = await imageRes.blob()
@@ -108,18 +103,12 @@ async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string
         method: 'POST',
         body: fd,
     })
-    // #region agent log
-    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H6',location:'Plugin.tsx:uploadImageToFileResource',message:'fileResources upload response',data:{ok:uploadRes.ok,status:uploadRes.status},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     let uploadBodyPreview: string | null = null
     try {
         uploadBodyPreview = (await uploadRes.clone().text()).slice(0, 800)
     } catch {
         uploadBodyPreview = null
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H6',location:'Plugin.tsx:uploadImageToFileResource',message:'fileResources upload body preview',data:{status:uploadRes.status,ct:uploadRes.headers?.get?.('content-type'),bodyPreview:uploadBodyPreview},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     if (!uploadRes.ok) {
         throw new Error(`fileResource_upload_failed_${uploadRes.status}`)
     }
@@ -133,19 +122,14 @@ async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string
 
 function applyDeviceToForm(
     device: PqsCatalogueDevice,
-    setFieldValue: IFormFieldPluginProps['setFieldValue']
+    setFieldValue: IFormFieldPluginProps['setFieldValue'],
+    fieldIds: PqsFieldIds
 ): void {
-    const updates = getFieldUpdatesFromDevice(device, {
+    const updates = getFieldUpdatesFromDevice(device, fieldIds, {
         includeImage: false,
     })
-    // #region agent log
-    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'pre-fix',hypothesisId:'H1',location:'Plugin.tsx:41',message:'Computed updates',data:{count:updates.length,types:updates.map(u=>({fieldId:u.fieldId,t:typeof u.value})),preview:updates.slice(0,8).map(u=>({fieldId:u.fieldId,value:String(u.value).slice(0,60)}))},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     for (const { fieldId, value } of updates) {
         const safeValue = typeof value === 'number' ? String(value) : value
-        // #region agent log
-        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'post-fix',hypothesisId:'H1',location:'Plugin.tsx:47',message:'Calling setFieldValue',data:{fieldId,valueType:typeof value,safeValueType:typeof safeValue,isNumber:typeof value==='number',valuePreview:String(value).slice(0,80),safeValuePreview:String(safeValue).slice(0,80)},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion agent log
         try {
             setFieldValue({
                 fieldId,
@@ -153,9 +137,8 @@ function applyDeviceToForm(
                 options: { touched: true, valid: true },
             })
         } catch (e) {
-            // #region agent log
-            fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'post-fix',hypothesisId:'H3',location:'Plugin.tsx:58',message:'setFieldValue threw',data:{fieldId,error:String(e)},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion agent log
+            // Ignore sandboxed write errors (unmapped field) to keep UX smooth.
+            // Admins will see missing mapping via validation/report UI.
         }
     }
 }
@@ -165,6 +148,9 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const viewMode = Boolean((rawProps as any)?.viewMode)
     const setFieldValue = (rawProps as any)?.setFieldValue as
         | IFormFieldPluginProps['setFieldValue']
+        | undefined
+    const fieldsMetadata = (rawProps as any)?.fieldsMetadata as
+        | IFormFieldPluginProps['fieldsMetadata']
         | undefined
 
     const [query, setQuery] = useState('')
@@ -188,12 +174,73 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const baseId = `pqs-${reactId.replace(/:/g, '')}`
     const listboxId = `${baseId}-listbox`
 
-    const catalogUrl = resolveCatalogUrl()
+    const config = useMemo(() => {
+        const raw = readRawPluginConfig(rawProps as any)
+        return parsePqsPluginConfig(raw)
+    }, [rawProps])
+
+    const routeRunBase = useMemo(() => {
+        if (!config.routeManager) return null
+        return buildRouteRunBase(config.routeManager)
+    }, [config.routeManager])
+
+    const { aliases: fieldAliases, report: fieldReport } = useMemo(() => {
+        return resolveFieldAliases({
+            fieldsMetadata: fieldsMetadata ?? {},
+            configured: config.fieldAliases,
+        })
+    }, [fieldsMetadata, config.fieldAliases])
+
+    const fieldIds = useMemo((): PqsFieldIds | null => {
+        const required: (keyof PqsFieldIds)[] = [
+            'pqsCode',
+            'pqsCategory',
+            'typeOfAppliance',
+            'company',
+            'manufacturedIn',
+            'manufacturersReference',
+            'energySource',
+            'vaccineStorageCapacityL',
+            'vaccineGrossVolumeL',
+            'freezerGrossVolumeL',
+            'applianceImage',
+        ]
+        for (const k of required) {
+            if (!fieldAliases[k]) return null
+        }
+        return fieldAliases as PqsFieldIds
+    }, [fieldAliases])
+
+    // Provide route base to image uploader without threading params everywhere.
+    useEffect(() => {
+        ;(globalThis as any).__PQS_ROUTE_RUN_BASE = routeRunBase
+        return () => {
+            delete (globalThis as any).__PQS_ROUTE_RUN_BASE
+        }
+    }, [routeRunBase])
+
+    const catalogUrl = useMemo(() => {
+        if (config.catalogUrl) return config.catalogUrl
+        if (!config.routeManager) return ''
+        return resolveCatalogUrl({
+            routeManager: config.routeManager,
+            catalogPath: config.catalogPath || '',
+        })
+    }, [config])
 
     const load = useCallback(async () => {
         setLoading(true)
         setLoadError(null)
-        const result = await loadE003Devices(catalogUrl)
+        if (!catalogUrl) {
+            setLoadError('Plugin is not configured: missing catalogue URL / route manager settings.')
+            setDevices([])
+            setLoading(false)
+            return
+        }
+        const result = await loadBucketDevices({
+            catalogUrl,
+            bucketKey: config.catalogBucketKey,
+        })
         if (result.ok) {
             setDevices(result.devices)
         } else {
@@ -201,7 +248,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
             setDevices([])
         }
         setLoading(false)
-    }, [catalogUrl])
+    }, [catalogUrl, config.catalogBucketKey])
 
     useEffect(() => {
         load()
@@ -216,7 +263,9 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
 
     const selectedCode =
         values && typeof values === 'object'
-            ? (values as any)[PQS_FIELD_IDS.pqsCode]
+            ? fieldIds
+                ? (values as any)[fieldIds.pqsCode]
+                : undefined
             : undefined
 
     const selectedLabel = useMemo(() => {
@@ -274,17 +323,17 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const onPick = useCallback(
         (device: PqsCatalogueDevice) => {
             if (typeof setFieldValue !== 'function') return
-            // #region agent log
-            fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'pre-fix',hypothesisId:'H2',location:'Plugin.tsx:onPick',message:'User picked device',data:{deviceId:device?.id,query,selectedCode},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion agent log
-            applyDeviceToForm(device, setFieldValue)
+            if (!fieldIds) return
+            applyDeviceToForm(device, setFieldValue, fieldIds)
             setQuery(deviceLabel(device))
             setPanelOpen(false)
             setHighlightedIndex(-1)
 
             const imageUrl = device?.main_image
             if (
+                config.enableImageUpload &&
                 shouldIncludeImage() &&
+                !!routeRunBase &&
                 typeof imageUrl === 'string' &&
                 imageUrl.length > 0
             ) {
@@ -298,7 +347,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                         if (!cached) imageCacheRef.current.set(imageUrl, { id, name })
                         if (!mountedRef.current) return
                         setFieldValue({
-                            fieldId: PQS_FIELD_IDS.applianceImage,
+                            fieldId: fieldIds.applianceImage,
                             value: {
                                 value: id,
                                 name,
@@ -320,7 +369,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                 setImageError(null)
             }
         },
-        [setFieldValue, query, selectedCode]
+        [setFieldValue, query, selectedCode, config.enableImageUpload, routeRunBase, fieldIds]
     )
 
     const clearBlurTimeout = () => {
@@ -439,6 +488,45 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                 <div className={classes.label}>PQS appliance</div>
                 <div className={classes.readonly} data-test="pqs-readonly">
                     {selectedLabel || '—'}
+                </div>
+            </div>
+        )
+    }
+
+    // Configuration/field mapping validation (hybrid):
+    // - Configurator mapping (fieldAliases) is preferred.
+    // - Auto-map may fill some gaps, but we still require all semantic fields to be resolvable.
+    if (!fieldIds) {
+        return (
+            <div className={classes.wrap}>
+                <div className={classes.label}>Select PQS appliance</div>
+                <div className={classes.error}>
+                    Plugin is not fully configured. Missing field mappings.
+                </div>
+                {fieldReport.notes.length > 0 ? (
+                    <div className={classes.meta}>{fieldReport.notes.join(' ')}</div>
+                ) : null}
+                {fieldReport.missing.length > 0 ? (
+                    <div className={classes.meta}>
+                        Missing: {fieldReport.missing.join(', ')}
+                    </div>
+                ) : null}
+                <div className={classes.meta}>
+                    Configure these in Tracker Plugin Configurator under field mapping (IdFromPlugin).
+                </div>
+            </div>
+        )
+    }
+
+    if (!catalogUrl) {
+        return (
+            <div className={classes.wrap}>
+                <div className={classes.label}>Select PQS appliance</div>
+                <div className={classes.error}>
+                    Plugin is not configured: missing catalogue URL or Route Manager settings.
+                </div>
+                <div className={classes.meta}>
+                    Provide `catalogUrl`, or configure Route Manager (`routeManager.routeId`) and `catalogPath`.
                 </div>
             </div>
         )
