@@ -9,7 +9,7 @@ import React, {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { IFormFieldPluginProps } from './plugin.types'
-import { loadE003Devices, resolveCatalogUrl } from './pqs/loadCatalog'
+import { loadE003Devices, PQS_ROUTE_RUN_BASE, resolveCatalogUrl } from './pqs/loadCatalog'
 import {
     PQS_FIELD_IDS,
     deviceLabel,
@@ -25,9 +25,6 @@ const LIST_LIMIT = 80
 
 /** ~10 option rows at 14px text + padding (see `.suggestionItem` min-height) */
 const SUGGESTIONS_MAX_HEIGHT_PX = 360
-
-// DHIS2 Route Manager: route id S1CxnuYJebB (example), served under /api/42/routes/{id}/run{path}
-const PQS_IMAGE_ROUTE_RUN_BASE = '/api/42/routes/S1CxnuYJebB/run'
 
 function shouldIncludeImage(): boolean {
     if (typeof navigator === 'undefined') return false
@@ -56,13 +53,7 @@ function extFromContentType(contentType: string | null | undefined): string | nu
 
 async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string; name: string }> {
     const tryFetch = async (url: string) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H4',location:'Plugin.tsx:uploadImageToFileResource',message:'Fetching image',data:{url},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion agent log
         const res = await fetch(url)
-        // #region agent log
-        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H4',location:'Plugin.tsx:uploadImageToFileResource',message:'Image fetch response',data:{url,ok:res.ok,status:res.status,ct:res.headers?.get?.('content-type')},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion agent log
         return res
     }
 
@@ -74,10 +65,7 @@ async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string
     } catch {
         proxiedPath = ''
     }
-    const proxied = `${PQS_IMAGE_ROUTE_RUN_BASE}${proxiedPath}`
-    // #region agent log
-    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H7',location:'Plugin.tsx:uploadImageToFileResource',message:'Constructed route proxy URL',data:{imageUrl,proxied},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
+    const proxied = `${PQS_ROUTE_RUN_BASE}${proxiedPath}`
     let imageRes: Response = await tryFetch(proxied)
     if (!imageRes.ok) {
         throw new Error(`image_download_failed_${imageRes.status}`)
@@ -90,9 +78,6 @@ async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string
         } catch {
             bodyTextPreview = null
         }
-        // #region agent log
-        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H5',location:'Plugin.tsx:uploadImageToFileResource',message:'Proxy returned non-image content-type',data:{contentType,bodyTextPreview},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion agent log
         throw new Error(`image_proxy_not_image_${contentType}`)
     }
     const blob = await imageRes.blob()
@@ -108,18 +93,12 @@ async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string
         method: 'POST',
         body: fd,
     })
-    // #region agent log
-    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H6',location:'Plugin.tsx:uploadImageToFileResource',message:'fileResources upload response',data:{ok:uploadRes.ok,status:uploadRes.status},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     let uploadBodyPreview: string | null = null
     try {
         uploadBodyPreview = (await uploadRes.clone().text()).slice(0, 800)
     } catch {
         uploadBodyPreview = null
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'img',hypothesisId:'H6',location:'Plugin.tsx:uploadImageToFileResource',message:'fileResources upload body preview',data:{status:uploadRes.status,ct:uploadRes.headers?.get?.('content-type'),bodyPreview:uploadBodyPreview},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     if (!uploadRes.ok) {
         throw new Error(`fileResource_upload_failed_${uploadRes.status}`)
     }
@@ -138,14 +117,8 @@ function applyDeviceToForm(
     const updates = getFieldUpdatesFromDevice(device, {
         includeImage: false,
     })
-    // #region agent log
-    fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'pre-fix',hypothesisId:'H1',location:'Plugin.tsx:41',message:'Computed updates',data:{count:updates.length,types:updates.map(u=>({fieldId:u.fieldId,t:typeof u.value})),preview:updates.slice(0,8).map(u=>({fieldId:u.fieldId,value:String(u.value).slice(0,60)}))},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     for (const { fieldId, value } of updates) {
         const safeValue = typeof value === 'number' ? String(value) : value
-        // #region agent log
-        fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'post-fix',hypothesisId:'H1',location:'Plugin.tsx:47',message:'Calling setFieldValue',data:{fieldId,valueType:typeof value,safeValueType:typeof safeValue,isNumber:typeof value==='number',valuePreview:String(value).slice(0,80),safeValuePreview:String(safeValue).slice(0,80)},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion agent log
         try {
             setFieldValue({
                 fieldId,
@@ -153,9 +126,6 @@ function applyDeviceToForm(
                 options: { touched: true, valid: true },
             })
         } catch (e) {
-            // #region agent log
-            fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'post-fix',hypothesisId:'H3',location:'Plugin.tsx:58',message:'setFieldValue threw',data:{fieldId,error:String(e)},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion agent log
         }
     }
 }
@@ -274,9 +244,6 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const onPick = useCallback(
         (device: PqsCatalogueDevice) => {
             if (typeof setFieldValue !== 'function') return
-            // #region agent log
-            fetch('http://127.0.0.1:7857/ingest/aa5a6498-11fc-4af4-bef8-50ced181b903',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'041286'},body:JSON.stringify({sessionId:'041286',runId:'pre-fix',hypothesisId:'H2',location:'Plugin.tsx:onPick',message:'User picked device',data:{deviceId:device?.id,query,selectedCode},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion agent log
             applyDeviceToForm(device, setFieldValue)
             setQuery(deviceLabel(device))
             setPanelOpen(false)

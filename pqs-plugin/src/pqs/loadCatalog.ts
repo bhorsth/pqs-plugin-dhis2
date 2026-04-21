@@ -3,15 +3,24 @@ import type { PqsCatalogueDevice } from './pqsFieldMapping'
 const E003_KEY = 'e003'
 
 /**
- * Same-origin path for Route Manager on the DHIS2 instance (e.g. http://localhost:8080).
- * This Route Manager route executes the WHO catalogue fetch and returns the JSON.
+ * DHIS2 Route Manager wildcard route base.
+ *
+ * This plugin proxies BOTH:
+ * - WHO catalogue JSON (`PQS_CATALOG_JSON_PATH`)
+ * - device images (by appending the image URL pathname)
+ *
+ * The Route Manager route MUST be configured as a wildcard route, ending with `/**`,
+ * e.g. `https://extranet.who.int/**`, otherwise DHIS2 will reject sub-paths after `/run`.
  */
-export const PQS_CATALOG_PATH =
-    '/api/routes/pqsCatalogue/run'
+export const PQS_ROUTE_RUN_BASE = '/api/42/routes/S1CxnuYJebB/run'
+
+/** Upstream WHO path for the PQS catalogue JSON. */
+export const PQS_CATALOG_JSON_PATH =
+    '/prequal/sites/default/files/immunization_devices/json/catalogs/immunization_devices_catalogue.json'
 
 /**
  * Resolves catalogue URL: optional `VITE_PQS_CATALOG_URL` (Jest/Node tooling),
- * otherwise `{origin}{PQS_CATALOG_PATH}` in the browser.
+ * otherwise `{baseUrl}{PQS_ROUTE_RUN_BASE}{PQS_CATALOG_JSON_PATH}` in the browser.
  */
 export function resolveCatalogUrl(): string {
     const fromEnv = (globalThis as any)?.process?.env?.VITE_PQS_CATALOG_URL
@@ -44,9 +53,9 @@ export function resolveCatalogUrl(): string {
 
         const base = injectedBase ?? envBase ?? devProxyBase ?? window.location.origin
 
-        return new URL(PQS_CATALOG_PATH, base).href
+        return new URL(`${PQS_ROUTE_RUN_BASE}${PQS_CATALOG_JSON_PATH}`, base).href
     }
-    return PQS_CATALOG_PATH
+    return `${PQS_ROUTE_RUN_BASE}${PQS_CATALOG_JSON_PATH}`
 }
 
 export type LoadCatalogResult =
