@@ -3,3 +3,5 @@ node_modules
 .d2
 src/locales
 build
+ROUTE_DEPLOYMENT_TODO.md
+errors.txt

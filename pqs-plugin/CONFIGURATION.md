@@ -29,5 +29,65 @@ To allow sub-path passthrough, the Route Manager destination URL must end with `
 
 ## Plugin-side settings
 
-In this codebase, the route base is currently defined in `src/pqs/loadCatalog.ts` as `PQS_ROUTE_RUN_BASE`.
+The plugin is designed to be deployed to multiple DHIS2 instances without rebuilding.
+
+### Runtime configuration (DHIS2 DataStore)
+
+The plugin reads runtime configuration from:
+
+- `dataStoreNamespace`: `pqsPlugin`
+- `dataStoreKey`: `config`
+
+If the key does not exist, the plugin will create a default object so admins can edit it.
+
+#### Minimum required keys
+
+- `routeCode`: Route Manager route `code` (preferred) or `name`
+
+#### Recommended keys
+
+- `fieldIds`: mapping from semantic keys to **tracked entity attribute UIDs** (recommended) or Capture `fieldId`s.
+  - This removes any dependency on instance-specific aliases (the old hard-coded defaults).
+  - Use **tracked entity attribute UIDs** whenever possible.
+
+##### UID mapping (formerly hard-coded)
+
+Set these keys in `pqsPlugin/config.fieldIds` to the **attribute UID** for each field in your Tracker program:
+
+- `pqsCode`: PQS code
+- `pqsCategory`: PQS category
+- `typeOfAppliance`: Type of appliance
+- `company`: Company
+- `manufacturedIn`: Manufactured in
+- `manufacturersReference`: Manufacturer's reference
+- `energySource`: Energy source
+- `vaccineStorageCapacityL`: Vaccine storage capacity (litres)
+- `vaccineGrossVolumeL`: Vaccine gross volume (litres)
+- `freezerGrossVolumeL`: Freezer gross volume (litres)
+- `applianceImage`: Appliance image (if you use an IMAGE attribute)
+
+Example (shape only; fill in your own UIDs):
+
+```json
+{
+  "routeCode": "pqsCatalogue",
+  "apiVersionStrategy": "fixed",
+  "apiVersion": 42,
+  "catalogPath": "/prequal/sites/default/files/immunization_devices/json/catalogs/immunization_devices_catalogue.json",
+  "enableImages": true,
+  "fieldIds": {
+    "pqsCode": "<TEA_UID>",
+    "pqsCategory": "<TEA_UID>",
+    "typeOfAppliance": "<TEA_UID>",
+    "company": "<TEA_UID>",
+    "manufacturedIn": "<TEA_UID>",
+    "manufacturersReference": "<TEA_UID>",
+    "energySource": "<TEA_UID>",
+    "vaccineStorageCapacityL": "<TEA_UID>",
+    "vaccineGrossVolumeL": "<TEA_UID>",
+    "freezerGrossVolumeL": "<TEA_UID>",
+    "applianceImage": "<TEA_UID>"
+  }
+}
+```
 

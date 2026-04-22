@@ -1,4 +1,5 @@
 import type { PqsCatalogueDevice } from './pqsFieldMapping'
+import { apiBasePath, type PqsPluginRuntimeConfig } from './runtimeConfig'
 
 const E003_KEY = 'e003'
 
@@ -6,23 +7,29 @@ const E003_KEY = 'e003'
  * DHIS2 Route Manager wildcard route base.
  *
  * This plugin proxies BOTH:
- * - WHO catalogue JSON (`PQS_CATALOG_JSON_PATH`)
+ * - WHO catalogue JSON (`catalogPath` from runtime config)
  * - device images (by appending the image URL pathname)
  *
  * The Route Manager route MUST be configured as a wildcard route, ending with `/**`,
  * e.g. `https://extranet.who.int/**`, otherwise DHIS2 will reject sub-paths after `/run`.
  */
-export const PQS_ROUTE_RUN_BASE = '/api/42/routes/S1CxnuYJebB/run'
-
-/** Upstream WHO path for the PQS catalogue JSON. */
-export const PQS_CATALOG_JSON_PATH =
-    '/prequal/sites/default/files/immunization_devices/json/catalogs/immunization_devices_catalogue.json'
+export function routeRunBase(
+    config: PqsPluginRuntimeConfig,
+    routeUid: string
+): string {
+    const base = apiBasePath(config)
+    const resource = config.routeApiResource || 'routes'
+    return `${base}/${resource}/${routeUid}/run`
+}
 
 /**
  * Resolves catalogue URL: optional `VITE_PQS_CATALOG_URL` (Jest/Node tooling),
- * otherwise `{baseUrl}{PQS_ROUTE_RUN_BASE}{PQS_CATALOG_JSON_PATH}` in the browser.
+ * otherwise `{baseUrl}{routeRunBase}{catalogPath}` in the browser.
  */
-export function resolveCatalogUrl(): string {
+export function resolveCatalogUrl(
+    config: PqsPluginRuntimeConfig,
+    routeUid: string
+): string {
     const fromEnv = (globalThis as any)?.process?.env?.VITE_PQS_CATALOG_URL
     if (typeof fromEnv === 'string' && fromEnv.length > 0) {
         return fromEnv
@@ -53,9 +60,13 @@ export function resolveCatalogUrl(): string {
 
         const base = injectedBase ?? envBase ?? devProxyBase ?? window.location.origin
 
-        return new URL(`${PQS_ROUTE_RUN_BASE}${PQS_CATALOG_JSON_PATH}`, base).href
+        const rr = routeRunBase(config, routeUid)
+        const path = config.catalogPath || ''
+        return new URL(`${rr}${path}`, base).href
     }
-    return `${PQS_ROUTE_RUN_BASE}${PQS_CATALOG_JSON_PATH}`
+    const rr = routeRunBase(config, routeUid)
+    const path = config.catalogPath || ''
+    return `${rr}${path}`
 }
 
 export type LoadCatalogResult =

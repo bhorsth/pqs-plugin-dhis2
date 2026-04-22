@@ -9,10 +9,11 @@ import React, {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { IFormFieldPluginProps } from './plugin.types'
-import { loadE003Devices, PQS_ROUTE_RUN_BASE, resolveCatalogUrl } from './pqs/loadCatalog'
+import { loadE003Devices, resolveCatalogUrl, routeRunBase } from './pqs/loadCatalog'
+import { discoverRouteUid, loadRuntimeConfig, type PqsPluginRuntimeConfig } from './pqs/runtimeConfig'
 import {
-    PQS_FIELD_IDS,
     deviceLabel,
+    fieldIdMapFromConfig,
     getFieldUpdatesFromDevice,
     type PqsCatalogueDevice,
 } from './pqs/pqsFieldMapping'
@@ -51,7 +52,10 @@ function extFromContentType(contentType: string | null | undefined): string | nu
     return null
 }
 
-async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string; name: string }> {
+async function uploadImageToFileResource(
+    imageUrl: string,
+    routeRunBase: string
+): Promise<{ id: string; name: string }> {
     const tryFetch = async (url: string) => {
         const res = await fetch(url)
         return res
@@ -65,7 +69,7 @@ async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string
     } catch {
         proxiedPath = ''
     }
-    const proxied = `${PQS_ROUTE_RUN_BASE}${proxiedPath}`
+    const proxied = `${routeRunBase}${proxiedPath}`
     let imageRes: Response = await tryFetch(proxied)
     if (!imageRes.ok) {
         throw new Error(`image_download_failed_${imageRes.status}`)
@@ -112,10 +116,12 @@ async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string
 
 function applyDeviceToForm(
     device: PqsCatalogueDevice,
-    setFieldValue: IFormFieldPluginProps['setFieldValue']
+    setFieldValue: IFormFieldPluginProps['setFieldValue'],
+    fieldIds: Record<string, string>
 ): void {
     const updates = getFieldUpdatesFromDevice(device, {
         includeImage: false,
+        fieldIds,
     })
     for (const { fieldId, value } of updates) {
         const safeValue = typeof value === 'number' ? String(value) : value
@@ -141,6 +147,8 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const [devices, setDevices] = useState([] as PqsCatalogueDevice[])
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState(null as string | null)
+    const [runtimeConfig, setRuntimeConfig] = useState(null as PqsPluginRuntimeConfig | null)
+    const [routeUid, setRouteUid] = useState(null as string | null)
     const [panelOpen, setPanelOpen] = useState(false)
     const [highlightedIndex, setHighlightedIndex] = useState(-1)
     const [isFocused, setIsFocused] = useState(false)
@@ -158,20 +166,55 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const baseId = `pqs-${reactId.replace(/:/g, '')}`
     const listboxId = `${baseId}-listbox`
 
-    const catalogUrl = resolveCatalogUrl()
+    const fieldIds = useMemo(() => {
+        const cfg = runtimeConfig
+        const fromConfig = cfg?.fieldIds
+        const fromTracker = cfg?.trackerUids?.attributes
+        return fieldIdMapFromConfig(fromConfig ?? fromTracker)
+    }, [runtimeConfig])
+
+    const sessionRouteRunBase = useMemo(() => {
+        if (!runtimeConfig || !routeUid) return ''
+        return routeRunBase(runtimeConfig, routeUid)
+    }, [runtimeConfig, routeUid])
 
     const load = useCallback(async () => {
         setLoading(true)
         setLoadError(null)
-        const result = await loadE003Devices(catalogUrl)
-        if (result.ok) {
-            setDevices(result.devices)
-        } else {
-            setLoadError(result.error)
+        try {
+            const cfg = await loadRuntimeConfig()
+            if (!mountedRef.current) return
+            setRuntimeConfig(cfg)
+
+            const discovered = await discoverRouteUid(cfg)
+            if (!mountedRef.current) return
+            if (!discovered.ok) {
+                setLoadError(discovered.error)
+                setDevices([])
+                setLoading(false)
+                return
+            }
+
+            setRouteUid(discovered.routeUid)
+
+            const url = resolveCatalogUrl(cfg, discovered.routeUid)
+            const result = await loadE003Devices(url)
+            if (!mountedRef.current) return
+            if (result.ok) {
+                setDevices(result.devices)
+            } else {
+                setLoadError(result.error)
+                setDevices([])
+            }
+        } catch (e) {
+            if (!mountedRef.current) return
+            setLoadError(String(e))
             setDevices([])
+        } finally {
+            if (!mountedRef.current) return
+            setLoading(false)
         }
-        setLoading(false)
-    }, [catalogUrl])
+    }, [])
 
     useEffect(() => {
         load()
@@ -185,9 +228,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     }, [])
 
     const selectedCode =
-        values && typeof values === 'object'
-            ? (values as any)[PQS_FIELD_IDS.pqsCode]
-            : undefined
+        values && typeof values === 'object' ? (values as any)[fieldIds.pqsCode] : undefined
 
     const selectedLabel = useMemo(() => {
         if (selectedCode == null || selectedCode === '') return ''
@@ -244,7 +285,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const onPick = useCallback(
         (device: PqsCatalogueDevice) => {
             if (typeof setFieldValue !== 'function') return
-            applyDeviceToForm(device, setFieldValue)
+            applyDeviceToForm(device, setFieldValue, fieldIds)
             setQuery(deviceLabel(device))
             setPanelOpen(false)
             setHighlightedIndex(-1)
@@ -261,11 +302,13 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                 const cached = imageCacheRef.current.get(imageUrl)
                 const run = async () => {
                     try {
-                        const { id, name } = cached ?? (await uploadImageToFileResource(imageUrl))
+                        const { id, name } =
+                            cached ??
+                            (await uploadImageToFileResource(imageUrl, sessionRouteRunBase))
                         if (!cached) imageCacheRef.current.set(imageUrl, { id, name })
                         if (!mountedRef.current) return
                         setFieldValue({
-                            fieldId: PQS_FIELD_IDS.applianceImage,
+                            fieldId: fieldIds.applianceImage,
                             value: {
                                 value: id,
                                 name,
@@ -287,7 +330,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                 setImageError(null)
             }
         },
-        [setFieldValue, query, selectedCode]
+        [setFieldValue, query, selectedCode, fieldIds, sessionRouteRunBase]
     )
 
     const clearBlurTimeout = () => {

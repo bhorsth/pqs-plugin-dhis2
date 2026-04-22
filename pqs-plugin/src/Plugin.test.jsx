@@ -2,7 +2,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import Plugin from './Plugin.tsx'
 import { clearCatalogCache } from './pqs/loadCatalog'
-import { PQS_FIELD_IDS } from './pqs/pqsFieldMapping'
+import { DEFAULT_FIELD_IDS } from './pqs/pqsFieldMapping'
 
 const minimalE003 = {
     id: 'E003-023',
@@ -54,6 +54,15 @@ describe('PQS Capture plugin', () => {
 
     beforeEach(() => {
         clearCatalogCache()
+        process.env.VITE_PQS_PLUGIN_CONFIG_JSON = JSON.stringify({
+            routeCode: 'whoProxy',
+            routeUid: 'S1CxnuYJebB',
+            apiVersionStrategy: 'fixed',
+            apiVersion: 42,
+            catalogPath:
+                '/prequal/sites/default/files/immunization_devices/json/catalogs/immunization_devices_catalogue.json',
+            enableImages: true,
+        })
         process.env.VITE_PQS_CATALOG_URL = 'http://test.local/catalog.json'
         global.fetch = jest.fn().mockImplementation(async (url) => {
             const u = String(url)
@@ -137,16 +146,16 @@ describe('PQS Capture plugin', () => {
 
         expect(props.setFieldValue).toHaveBeenCalled()
         const firstCall = props.setFieldValue.mock.calls[0][0]
-        expect(firstCall.fieldId).toBe(PQS_FIELD_IDS.pqsCode)
+        expect(firstCall.fieldId).toBe(DEFAULT_FIELD_IDS.pqsCode)
         expect(firstCall.value).toBe('E003-023')
 
         const fieldIds = props.setFieldValue.mock.calls.map((c) => c[0].fieldId)
-        expect(fieldIds).toContain(PQS_FIELD_IDS.company)
-        expect(fieldIds).toContain(PQS_FIELD_IDS.freezerGrossVolumeL)
-        expect(fieldIds).toContain(PQS_FIELD_IDS.applianceImage)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.company)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.freezerGrossVolumeL)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.applianceImage)
 
         const imageCalls = props.setFieldValue.mock.calls.filter(
-            (c) => c[0].fieldId === PQS_FIELD_IDS.applianceImage
+            (c) => c[0].fieldId === DEFAULT_FIELD_IDS.applianceImage
         )
         expect(imageCalls.length).toBe(1)
         expect(imageCalls[0][0].value).toEqual(
@@ -186,13 +195,13 @@ describe('PQS Capture plugin', () => {
         document.body.removeChild(div)
 
         const fieldIds = props.setFieldValue.mock.calls.map((c) => c[0].fieldId)
-        expect(fieldIds).not.toContain(PQS_FIELD_IDS.applianceImage)
+        expect(fieldIds).not.toContain(DEFAULT_FIELD_IDS.applianceImage)
     })
 
     it('renders read-only summary in viewMode', async () => {
         const props = baseProps({
             viewMode: true,
-            values: { [PQS_FIELD_IDS.pqsCode]: 'E003-023' },
+            values: { [DEFAULT_FIELD_IDS.pqsCode]: 'E003-023' },
         })
         const div = document.createElement('div')
         const root = createRoot(div)
