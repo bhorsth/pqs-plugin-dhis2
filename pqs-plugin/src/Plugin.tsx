@@ -11,12 +11,17 @@ import { createPortal } from 'react-dom'
 import { IFormFieldPluginProps } from './plugin.types'
 import { loadE003Devices, resolveCatalogUrl, routeRunBase } from './pqs/loadCatalog'
 import { discoverRouteUid, loadRuntimeConfig, type PqsPluginRuntimeConfig } from './pqs/runtimeConfig'
+import { loadBucketDevices, resolveCatalogUrl } from './pqs/loadCatalog'
+import { buildRouteRunBase } from './pqs/dhis2Artifacts'
 import {
     deviceLabel,
     fieldIdMapFromConfig,
     getFieldUpdatesFromDevice,
+    type PqsFieldIds,
     type PqsCatalogueDevice,
 } from './pqs/pqsFieldMapping'
+import { parsePqsPluginConfig, readRawPluginConfig } from './pqs/pluginConfig'
+import { resolveFieldAliases } from './pqs/fieldResolver'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - CSS Modules are supported by the DHIS2/Vite toolchain, but
 // Cursor's TS linter may not resolve the module typing automatically.
@@ -56,6 +61,14 @@ async function uploadImageToFileResource(
     imageUrl: string,
     routeRunBase: string
 ): Promise<{ id: string; name: string }> {
+async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string; name: string }> {
+    // Route base is configured at runtime via Tracker Plugin Configurator.
+    // If missing, image upload should be disabled by config validation.
+    const routeRunBase = (globalThis as any).__PQS_ROUTE_RUN_BASE as string | undefined
+    if (typeof routeRunBase !== 'string' || routeRunBase.length === 0) {
+        throw new Error('route_manager_not_configured')
+    }
+
     const tryFetch = async (url: string) => {
         const res = await fetch(url)
         return res
@@ -117,9 +130,9 @@ async function uploadImageToFileResource(
 function applyDeviceToForm(
     device: PqsCatalogueDevice,
     setFieldValue: IFormFieldPluginProps['setFieldValue'],
-    fieldIds: Record<string, string>
+    fieldIds: PqsFieldIds
 ): void {
-    const updates = getFieldUpdatesFromDevice(device, {
+    const updates = getFieldUpdatesFromDevice(device, fieldIds, {
         includeImage: false,
         fieldIds,
     })
@@ -132,6 +145,8 @@ function applyDeviceToForm(
                 options: { touched: true, valid: true },
             })
         } catch (e) {
+            // Ignore sandboxed write errors (unmapped field) to keep UX smooth.
+            // Admins will see missing mapping via validation/report UI.
         }
     }
 }
@@ -141,6 +156,9 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const viewMode = Boolean((rawProps as any)?.viewMode)
     const setFieldValue = (rawProps as any)?.setFieldValue as
         | IFormFieldPluginProps['setFieldValue']
+        | undefined
+    const fieldsMetadata = (rawProps as any)?.fieldsMetadata as
+        | IFormFieldPluginProps['fieldsMetadata']
         | undefined
 
     const [query, setQuery] = useState('')
@@ -166,17 +184,59 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const baseId = `pqs-${reactId.replace(/:/g, '')}`
     const listboxId = `${baseId}-listbox`
 
-    const fieldIds = useMemo(() => {
-        const cfg = runtimeConfig
-        const fromConfig = cfg?.fieldIds
-        const fromTracker = cfg?.trackerUids?.attributes
-        return fieldIdMapFromConfig(fromConfig ?? fromTracker)
-    }, [runtimeConfig])
+    const config = useMemo(() => {
+        const raw = readRawPluginConfig(rawProps as any)
+        return parsePqsPluginConfig(raw)
+    }, [rawProps])
 
-    const sessionRouteRunBase = useMemo(() => {
-        if (!runtimeConfig || !routeUid) return ''
-        return routeRunBase(runtimeConfig, routeUid)
-    }, [runtimeConfig, routeUid])
+    const routeRunBase = useMemo(() => {
+        if (!config.routeManager) return null
+        return buildRouteRunBase(config.routeManager)
+    }, [config.routeManager])
+
+    const { aliases: fieldAliases, report: fieldReport } = useMemo(() => {
+        return resolveFieldAliases({
+            fieldsMetadata: fieldsMetadata ?? {},
+            configured: config.fieldAliases,
+        })
+    }, [fieldsMetadata, config.fieldAliases])
+
+    const fieldIds = useMemo((): PqsFieldIds | null => {
+        const required: (keyof PqsFieldIds)[] = [
+            'pqsCode',
+            'pqsCategory',
+            'typeOfAppliance',
+            'company',
+            'manufacturedIn',
+            'manufacturersReference',
+            'energySource',
+            'vaccineStorageCapacityL',
+            'vaccineGrossVolumeL',
+            'freezerGrossVolumeL',
+            'applianceImage',
+        ]
+        for (const k of required) {
+            if (!fieldAliases[k]) return null
+        }
+        return fieldAliases as PqsFieldIds
+    }, [fieldAliases])
+
+    // Provide route base to image uploader without threading params everywhere.
+    useEffect(() => {
+        ;(globalThis as any).__PQS_ROUTE_RUN_BASE = routeRunBase
+        return () => {
+            delete (globalThis as any).__PQS_ROUTE_RUN_BASE
+        }
+    }, [routeRunBase])
+
+    const catalogUrl = useMemo(() => {
+        if (config.catalogUrl) return config.catalogUrl
+        if (!config.routeManager) return ''
+        return resolveCatalogUrl({
+            routeManager: config.routeManager,
+            catalogPath: config.catalogPath || '',
+        })
+    }, [config])
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -209,12 +269,27 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
         } catch (e) {
             if (!mountedRef.current) return
             setLoadError(String(e))
+        if (!catalogUrl) {
+            setLoadError('Plugin is not configured: missing catalogue URL / route manager settings.')
+            setDevices([])
+            setLoading(false)
+            return
+        }
+        const result = await loadBucketDevices({
+            catalogUrl,
+            bucketKey: config.catalogBucketKey,
+        })
+        if (result.ok) {
+            setDevices(result.devices)
+        } else {
+            setLoadError(result.error)
             setDevices([])
         } finally {
             if (!mountedRef.current) return
             setLoading(false)
         }
-    }, [])
+        setLoading(false)
+    }, [catalogUrl, config.catalogBucketKey])
 
     useEffect(() => {
         load()
@@ -228,7 +303,11 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     }, [])
 
     const selectedCode =
-        values && typeof values === 'object' ? (values as any)[fieldIds.pqsCode] : undefined
+        values && typeof values === 'object'
+            ? fieldIds
+                ? (values as any)[fieldIds.pqsCode]
+                : undefined
+            : undefined
 
     const selectedLabel = useMemo(() => {
         if (selectedCode == null || selectedCode === '') return ''
@@ -285,6 +364,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const onPick = useCallback(
         (device: PqsCatalogueDevice) => {
             if (typeof setFieldValue !== 'function') return
+            if (!fieldIds) return
             applyDeviceToForm(device, setFieldValue, fieldIds)
             setQuery(deviceLabel(device))
             setPanelOpen(false)
@@ -292,7 +372,9 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
 
             const imageUrl = device?.main_image
             if (
+                config.enableImageUpload &&
                 shouldIncludeImage() &&
+                !!routeRunBase &&
                 typeof imageUrl === 'string' &&
                 imageUrl.length > 0
             ) {
@@ -331,6 +413,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
             }
         },
         [setFieldValue, query, selectedCode, fieldIds, sessionRouteRunBase]
+        [setFieldValue, query, selectedCode, config.enableImageUpload, routeRunBase, fieldIds]
     )
 
     const clearBlurTimeout = () => {
@@ -449,6 +532,45 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                 <div className={classes.label}>PQS appliance</div>
                 <div className={classes.readonly} data-test="pqs-readonly">
                     {selectedLabel || '—'}
+                </div>
+            </div>
+        )
+    }
+
+    // Configuration/field mapping validation (hybrid):
+    // - Configurator mapping (fieldAliases) is preferred.
+    // - Auto-map may fill some gaps, but we still require all semantic fields to be resolvable.
+    if (!fieldIds) {
+        return (
+            <div className={classes.wrap}>
+                <div className={classes.label}>Select PQS appliance</div>
+                <div className={classes.error}>
+                    Plugin is not fully configured. Missing field mappings.
+                </div>
+                {fieldReport.notes.length > 0 ? (
+                    <div className={classes.meta}>{fieldReport.notes.join(' ')}</div>
+                ) : null}
+                {fieldReport.missing.length > 0 ? (
+                    <div className={classes.meta}>
+                        Missing: {fieldReport.missing.join(', ')}
+                    </div>
+                ) : null}
+                <div className={classes.meta}>
+                    Configure these in Tracker Plugin Configurator under field mapping (IdFromPlugin).
+                </div>
+            </div>
+        )
+    }
+
+    if (!catalogUrl) {
+        return (
+            <div className={classes.wrap}>
+                <div className={classes.label}>Select PQS appliance</div>
+                <div className={classes.error}>
+                    Plugin is not configured: missing catalogue URL or Route Manager settings.
+                </div>
+                <div className={classes.meta}>
+                    Provide `catalogUrl`, or configure Route Manager (`routeManager.routeId`) and `catalogPath`.
                 </div>
             </div>
         )

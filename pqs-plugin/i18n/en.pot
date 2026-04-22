@@ -7,6 +7,8 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
 "POT-Creation-Date: 2026-04-22T07:34:52.901Z\n"
 "PO-Revision-Date: 2026-04-22T07:34:52.902Z\n"
+"POT-Creation-Date: 2026-04-17T12:46:44.329Z\n"
+"PO-Revision-Date: 2026-04-17T12:46:44.331Z\n"
 
 msgid "ERROR"
 msgstr "ERROR"
@@ -19,3 +21,11 @@ msgstr "Hello {{name}}"
 
 msgid "Welcome to DHIS2!"
 msgstr "Welcome to DHIS2!"
+
+msgctxt "Application title"
+msgid "__MANIFEST_APP_TITLE"
+msgstr "pqs-plugin"
+
+msgctxt "Application description"
+msgid "__MANIFEST_APP_DESCRIPTION"
+msgstr ""

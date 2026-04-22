@@ -1,37 +1,20 @@
 /**
- * Tracker / Capture field mapping.
- *
- * In DHIS2 Capture, `setFieldValue({ fieldId })` typically expects the tracked entity attribute UID.
- * This plugin supports configuring those UIDs at runtime (DHIS2 DataStore) so nothing is hard-coded
- * in the bundle.
- *
- * | DHIS2 attribute (displayName)     | id / plugin alias | PQS JSON source |
- * |-----------------------------------|---------------------|-----------------|
- * | PQS code                          | (configured) → `pqsCode` | id / details["imd-pqs_code"] |
- * | PQS category                      | (configured) → `pqsCategory` | details.appliance_type |
- * | Type of appliance                 | (configured) → `typeOfAppliance` | details.product_description or product_name |
- * | Company                           | (configured) → `company` | details.manufacturer |
- * | Manufactured in                   | (configured) → `manufacturedIn` | details.country_of_manufacture |
- * | Manufacturer's reference          | (configured) → `manufacturersReference` | details.manufacturers_reference |
- * | Energy source                     | (configured) → `energySource` | specifications.product_specifications_main.energy_source |
- * | Vaccine storage capacity (litres) | (configured) → `vaccineStorageCapacityL` | refrigerator_vaccine_storage_capacity(l) or waterpack_storage_capacity_(litres) |
- * | Vaccine gross volume (litres)     | (configured) → `vaccineGrossVolumeL` | refrigerator's_gross_volume_(litres) |
- * | Freezer gross volume (litres)    | (configured) → `freezerGrossVolumeL` | freezer's_gross_volume_(litres) |
- * | Appliance image                   | (configured) → `applianceImage` | main_image (only when online; IMAGE type — verify on instance) |
+ * Semantic field keys for the plugin. The actual field identifiers are **plugin aliases**
+ * configured via Tracker Plugin Configurator (IdFromPlugin). Avoid hard-coding DHIS2 UIDs here.
  */
-export const DEFAULT_FIELD_IDS = {
-    pqsCode: 'pqsCODE',
-    pqsCategory: 'pqsCAT',
-    typeOfAppliance: 'typeofAPP',
-    company: 'company',
-    manufacturedIn: 'manufIN',
-    manufacturersReference: 'manufREF',
-    energySource: 'energySOURCE',
-    vaccineStorageCapacityL: 'storageCAP',
-    vaccineGrossVolumeL: 'vaccGROSSV',
-    freezerGrossVolumeL: 'freezGROSSV',
-    applianceImage: 'imageURL',
-} as const
+export type PqsFieldIds = {
+    pqsCode: string
+    pqsCategory: string
+    typeOfAppliance: string
+    company: string
+    manufacturedIn: string
+    manufacturersReference: string
+    energySource: string
+    vaccineStorageCapacityL: string
+    vaccineGrossVolumeL: string
+    freezerGrossVolumeL: string
+    applianceImage: string
+}
 
 export type PqsFieldIdKey = keyof typeof DEFAULT_FIELD_IDS
 
@@ -71,7 +54,8 @@ function parseLitres(v: unknown): number | null {
  */
 export function getFieldUpdatesFromDevice(
     device: PqsCatalogueDevice,
-    options: { includeImage: boolean; fieldIds?: Record<string, string> | null }
+    fieldIds: PqsFieldIds,
+    options: { includeImage: boolean }
 ): FieldUpdate[] {
     const fieldIds = fieldIdMapFromConfig(options.fieldIds)
     const d = device.details ?? {}
