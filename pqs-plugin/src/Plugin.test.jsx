@@ -2,6 +2,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import Plugin from './Plugin.tsx'
 import { clearCatalogCache } from './pqs/loadCatalog'
+import { DEFAULT_FIELD_IDS } from './pqs/pqsFieldMapping'
 
 const FIELD_ALIASES = {
     pqsCode: 'pqsCODE',
@@ -158,6 +159,16 @@ describe('PQS Capture plugin', () => {
 
         expect(props.setFieldValue).toHaveBeenCalled()
         const firstCall = props.setFieldValue.mock.calls[0][0]
+        expect(firstCall.fieldId).toBe(DEFAULT_FIELD_IDS.pqsCode)
+        expect(firstCall.value).toBe('E003-023')
+
+        const fieldIds = props.setFieldValue.mock.calls.map((c) => c[0].fieldId)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.company)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.freezerGrossVolumeL)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.applianceImage)
+
+        const imageCalls = props.setFieldValue.mock.calls.filter(
+            (c) => c[0].fieldId === DEFAULT_FIELD_IDS.applianceImage
         expect(firstCall.fieldId).toBe(FIELD_ALIASES.pqsCode)
         expect(firstCall.value).toBe('E003-023')
 
@@ -215,12 +226,14 @@ describe('PQS Capture plugin', () => {
         document.body.removeChild(div)
 
         const fieldIds = props.setFieldValue.mock.calls.map((c) => c[0].fieldId)
+        expect(fieldIds).not.toContain(DEFAULT_FIELD_IDS.applianceImage)
         expect(fieldIds).not.toContain(FIELD_ALIASES.applianceImage)
     })
 
     it('renders read-only summary in viewMode', async () => {
         const props = baseProps({
             viewMode: true,
+            values: { [DEFAULT_FIELD_IDS.pqsCode]: 'E003-023' },
             pluginConfig: {
                 catalogUrl: 'http://test.local/catalog.json',
                 catalogBucketKey: 'e003',

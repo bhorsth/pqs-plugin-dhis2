@@ -16,6 +16,17 @@ export type PqsFieldIds = {
     applianceImage: string
 }
 
+export type PqsFieldIdKey = keyof typeof DEFAULT_FIELD_IDS
+
+export function fieldIdMapFromConfig(configFieldIds?: Record<string, string> | null | undefined) {
+    if (!configFieldIds) return DEFAULT_FIELD_IDS
+    const merged: Record<string, string> = { ...DEFAULT_FIELD_IDS }
+    for (const [k, v] of Object.entries(configFieldIds)) {
+        if (typeof v === 'string' && v.trim().length > 0) merged[k] = v.trim()
+    }
+    return merged as typeof DEFAULT_FIELD_IDS
+}
+
 export type PqsCatalogueDevice = {
     id: string
     title?: string
@@ -46,6 +57,7 @@ export function getFieldUpdatesFromDevice(
     fieldIds: PqsFieldIds,
     options: { includeImage: boolean }
 ): FieldUpdate[] {
+    const fieldIds = fieldIdMapFromConfig(options.fieldIds)
     const d = device.details ?? {}
     const main =
         device.specifications?.product_specifications_main ?? {}

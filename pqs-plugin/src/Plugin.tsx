@@ -9,10 +9,13 @@ import React, {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { IFormFieldPluginProps } from './plugin.types'
+import { loadE003Devices, resolveCatalogUrl, routeRunBase } from './pqs/loadCatalog'
+import { discoverRouteUid, loadRuntimeConfig, type PqsPluginRuntimeConfig } from './pqs/runtimeConfig'
 import { loadBucketDevices, resolveCatalogUrl } from './pqs/loadCatalog'
 import { buildRouteRunBase } from './pqs/dhis2Artifacts'
 import {
     deviceLabel,
+    fieldIdMapFromConfig,
     getFieldUpdatesFromDevice,
     type PqsFieldIds,
     type PqsCatalogueDevice,
@@ -54,6 +57,10 @@ function extFromContentType(contentType: string | null | undefined): string | nu
     return null
 }
 
+async function uploadImageToFileResource(
+    imageUrl: string,
+    routeRunBase: string
+): Promise<{ id: string; name: string }> {
 async function uploadImageToFileResource(imageUrl: string): Promise<{ id: string; name: string }> {
     // Route base is configured at runtime via Tracker Plugin Configurator.
     // If missing, image upload should be disabled by config validation.
@@ -127,6 +134,7 @@ function applyDeviceToForm(
 ): void {
     const updates = getFieldUpdatesFromDevice(device, fieldIds, {
         includeImage: false,
+        fieldIds,
     })
     for (const { fieldId, value } of updates) {
         const safeValue = typeof value === 'number' ? String(value) : value
@@ -157,6 +165,8 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const [devices, setDevices] = useState([] as PqsCatalogueDevice[])
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState(null as string | null)
+    const [runtimeConfig, setRuntimeConfig] = useState(null as PqsPluginRuntimeConfig | null)
+    const [routeUid, setRouteUid] = useState(null as string | null)
     const [panelOpen, setPanelOpen] = useState(false)
     const [highlightedIndex, setHighlightedIndex] = useState(-1)
     const [isFocused, setIsFocused] = useState(false)
@@ -231,6 +241,34 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
     const load = useCallback(async () => {
         setLoading(true)
         setLoadError(null)
+        try {
+            const cfg = await loadRuntimeConfig()
+            if (!mountedRef.current) return
+            setRuntimeConfig(cfg)
+
+            const discovered = await discoverRouteUid(cfg)
+            if (!mountedRef.current) return
+            if (!discovered.ok) {
+                setLoadError(discovered.error)
+                setDevices([])
+                setLoading(false)
+                return
+            }
+
+            setRouteUid(discovered.routeUid)
+
+            const url = resolveCatalogUrl(cfg, discovered.routeUid)
+            const result = await loadE003Devices(url)
+            if (!mountedRef.current) return
+            if (result.ok) {
+                setDevices(result.devices)
+            } else {
+                setLoadError(result.error)
+                setDevices([])
+            }
+        } catch (e) {
+            if (!mountedRef.current) return
+            setLoadError(String(e))
         if (!catalogUrl) {
             setLoadError('Plugin is not configured: missing catalogue URL / route manager settings.')
             setDevices([])
@@ -246,6 +284,9 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
         } else {
             setLoadError(result.error)
             setDevices([])
+        } finally {
+            if (!mountedRef.current) return
+            setLoading(false)
         }
         setLoading(false)
     }, [catalogUrl, config.catalogBucketKey])
@@ -343,7 +384,9 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                 const cached = imageCacheRef.current.get(imageUrl)
                 const run = async () => {
                     try {
-                        const { id, name } = cached ?? (await uploadImageToFileResource(imageUrl))
+                        const { id, name } =
+                            cached ??
+                            (await uploadImageToFileResource(imageUrl, sessionRouteRunBase))
                         if (!cached) imageCacheRef.current.set(imageUrl, { id, name })
                         if (!mountedRef.current) return
                         setFieldValue({
@@ -369,6 +412,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                 setImageError(null)
             }
         },
+        [setFieldValue, query, selectedCode, fieldIds, sessionRouteRunBase]
         [setFieldValue, query, selectedCode, config.enableImageUpload, routeRunBase, fieldIds]
     )
 

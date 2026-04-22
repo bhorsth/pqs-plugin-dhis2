@@ -1,5 +1,27 @@
 This project was bootstrapped with [DHIS2 Application Platform](https://github.com/dhis2/app-platform).
 
+## PQS Route Manager configuration
+
+This plugin proxies the WHO PQS catalogue JSON and device images through **DHIS2 Route Manager**.
+
+- **Single route**: the plugin uses one Route Manager route for both catalogue + images.
+- **Wildcard required**: the Route Manager destination URL must end with `/**` (double-asterisk) so that DHIS2 will allow sub-paths after `/run`.
+
+### Route setup
+
+Create (or update) a Route Manager route:
+
+- **ID**: `S1CxnuYJebB` (example used in code)
+- **Code / Name**: `catalogUrl` (or any)
+- **URL**: `https://extranet.who.int/**`
+
+### How the plugin calls the route
+
+- **Run base**: `/api/42/routes/S1CxnuYJebB/run`
+- **Catalogue**: `{runBase}/prequal/sites/default/files/immunization_devices/json/catalogs/immunization_devices_catalogue.json`
+- **Images**: `{runBase}{imageUrl.pathname}`
+
+If you need to change the route id or API version, update `src/pqs/loadCatalog.ts` (`PQS_ROUTE_RUN_BASE`).
 ## Plugin configuration (multi-instance deployment)
 
 This repository contains a Capture **form field plugin** entry point (`plugin`) and a demo app entry point (`app`).
