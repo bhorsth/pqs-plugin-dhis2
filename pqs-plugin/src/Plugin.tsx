@@ -10,7 +10,12 @@ import React, {
 import { createPortal } from 'react-dom'
 import { IFormFieldPluginProps } from './plugin.types'
 import { loadE003Devices, resolveCatalogUrl, routeRunBase } from './pqs/loadCatalog'
-import { discoverRouteUid, loadRuntimeConfig, type PqsPluginRuntimeConfig } from './pqs/runtimeConfig'
+import {
+    dhis2UnversionedApiBase,
+    discoverRouteUid,
+    loadRuntimeConfig,
+    type PqsPluginRuntimeConfig,
+} from './pqs/runtimeConfig'
 import {
     deviceLabel,
     fieldIdMapFromConfig,
@@ -93,7 +98,7 @@ async function uploadImageToFileResource(
     const fd = new FormData()
     fd.append('file', file)
 
-    const uploadRes = await fetch('/api/fileResources', {
+    const uploadRes = await fetch(`${dhis2UnversionedApiBase()}/fileResources`, {
         method: 'POST',
         body: fd,
     })

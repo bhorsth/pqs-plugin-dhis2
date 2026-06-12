@@ -99,12 +99,68 @@ function envOverrideConfig(): PqsPluginRuntimeConfig | null {
     }
 }
 
+function contextPathFromPathname(pathname: string): string {
+    const idx = pathname.indexOf('/api')
+    if (idx <= 0) return ''
+    return pathname.slice(0, idx)
+}
+
+/**
+ * DHIS2 instance base URL, including any context path (e.g. `https://host/sandbox-dev`).
+ * Used so `/api/...` requests are rooted under the instance name, not the domain root.
+ */
+export function resolveDhis2BaseUrl(): string | null {
+    if (typeof window === 'undefined') return null
+
+    const metaBaseUrl = window.document
+        ?.querySelector?.('meta[name="dhis2-base-url"]')
+        ?.getAttribute?.('content')
+
+    if (metaBaseUrl && metaBaseUrl !== '__DHIS2_BASE_URL__') {
+        return new URL(metaBaseUrl, window.location.origin).href.replace(/\/$/, '')
+    }
+
+    const shellBase = (globalThis as any)?.process?.env?.REACT_APP_DHIS2_BASE_URL
+    if (typeof shellBase === 'string' && shellBase.length > 0) {
+        return shellBase.replace(/\/$/, '')
+    }
+
+    const isLocalVite =
+        window.location.hostname === 'localhost' &&
+        (window.location.port === '3000' || window.location.port === '3001')
+    if (isLocalVite) {
+        return window.location.origin
+    }
+
+    const ctx = contextPathFromPathname(window.location.pathname)
+    return `${window.location.origin}${ctx}`.replace(/\/$/, '') || window.location.origin
+}
+
+/** Path prefix before `/api`, e.g. `/sandbox-dev` or empty at domain root. */
+export function dhis2ContextPath(): string {
+    const base = resolveDhis2BaseUrl()
+    if (!base) return ''
+    try {
+        const pathname = new URL(base).pathname.replace(/\/$/, '')
+        return pathname === '' || pathname === '/' ? '' : pathname
+    } catch {
+        return ''
+    }
+}
+
+/** Unversioned API root, e.g. `/sandbox-dev/api` or `/api`. */
+export function dhis2UnversionedApiBase(): string {
+    const prefix = dhis2ContextPath()
+    return `${prefix}/api`
+}
+
 export function apiBasePath(config: PqsPluginRuntimeConfig): string {
+    const apiRoot = dhis2UnversionedApiBase()
     const strat = config.apiVersionStrategy
-    if (strat === 'omit') return '/api'
-    if (strat === 'fixed') return `/api/${config.apiVersion ?? 42}`
+    if (strat === 'omit') return apiRoot
+    if (strat === 'fixed') return `${apiRoot}/${config.apiVersion ?? 42}`
     // "auto": prefer unversioned API (works across DHIS2 versions) and fall back to a configured version.
-    return typeof config.apiVersion !== 'undefined' ? `/api/${config.apiVersion}` : '/api'
+    return typeof config.apiVersion !== 'undefined' ? `${apiRoot}/${config.apiVersion}` : apiRoot
 }
 
 async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
@@ -135,7 +191,7 @@ export async function loadRuntimeConfig(): Promise<PqsPluginRuntimeConfig> {
     const fromEnv = envOverrideConfig()
     if (fromEnv) return fromEnv
 
-    const url = `/api/dataStore/${DATASTORE_NAMESPACE}/${DATASTORE_KEY}`
+    const url = `${dhis2UnversionedApiBase()}/dataStore/${DATASTORE_NAMESPACE}/${DATASTORE_KEY}`
     try {
         const json = await fetchJson(url)
         const parsed = parseRuntimeConfig(json)

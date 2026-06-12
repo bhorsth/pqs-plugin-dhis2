@@ -1,5 +1,5 @@
 import type { PqsCatalogueDevice } from './pqsFieldMapping'
-import { apiBasePath, type PqsPluginRuntimeConfig } from './runtimeConfig'
+import { apiBasePath, resolveDhis2BaseUrl, type PqsPluginRuntimeConfig } from './runtimeConfig'
 
 const E003_KEY = 'e003'
 
@@ -35,31 +35,7 @@ export function resolveCatalogUrl(
         return fromEnv
     }
     if (typeof window !== 'undefined') {
-        const metaBaseUrl = window.document
-            ?.querySelector?.('meta[name=\"dhis2-base-url\"]')
-            ?.getAttribute?.('content')
-
-        const injectedBase =
-            metaBaseUrl && metaBaseUrl !== '__DHIS2_BASE_URL__'
-                ? new URL(metaBaseUrl, window.location.origin).href
-                : null
-
-        // In development, the app-shell injects DHIS2_BASE_URL via env vars
-        // (and `d2-app-scripts start --proxy` may point this at a local proxy server).
-        const shellBase = (globalThis as any)?.process?.env?.REACT_APP_DHIS2_BASE_URL
-        const envBase =
-            typeof shellBase === 'string' && shellBase.length > 0 ? shellBase : null
-
-        const isLocalVite =
-            window.location.hostname === 'localhost' &&
-            (window.location.port === '3000' || window.location.port === '3001')
-
-        // In local Vite development we use server.proxy (/api -> localhost:8080),
-        // so keep requests same-origin (localhost:3000/3001).
-        const devProxyBase = isLocalVite ? window.location.origin : null
-
-        const base = injectedBase ?? envBase ?? devProxyBase ?? window.location.origin
-
+        const base = resolveDhis2BaseUrl() ?? window.location.origin
         const rr = routeRunBase(config, routeUid)
         const path = config.catalogPath || ''
         return new URL(`${rr}${path}`, base).href
