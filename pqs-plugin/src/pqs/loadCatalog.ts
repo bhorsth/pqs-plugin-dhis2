@@ -62,6 +62,8 @@ function normalizeDevice(raw: unknown): PqsCatalogueDevice | null {
     if (typeof id !== 'string') return null
     const details = isRecord(raw.details) ? raw.details : undefined
     const specs = isRecord(raw.specifications) ? raw.specifications : undefined
+    const productSites = isRecord(raw.product_sites) ? raw.product_sites : undefined
+    const status = isRecord(raw.status) ? raw.status : undefined
     const stringDetails: Record<string, string | number | undefined> = {}
     if (details) {
         for (const [k, v] of Object.entries(details)) {
@@ -79,6 +81,18 @@ function normalizeDevice(raw: unknown): PqsCatalogueDevice | null {
             stringSpecs[gk] = inner
         }
     }
+    const stringProductSites: Record<string, string | number | undefined> = {}
+    if (productSites) {
+        for (const [k, v] of Object.entries(productSites)) {
+            if (typeof v === 'string' || typeof v === 'number') stringProductSites[k] = v
+        }
+    }
+    const stringStatus: Record<string, string | number | undefined> = {}
+    if (status) {
+        for (const [k, v] of Object.entries(status)) {
+            if (typeof v === 'string' || typeof v === 'number') stringStatus[k] = v
+        }
+    }
     return {
         id,
         title: typeof raw.title === 'string' ? raw.title : undefined,
@@ -86,6 +100,8 @@ function normalizeDevice(raw: unknown): PqsCatalogueDevice | null {
             typeof raw.main_image === 'string' ? raw.main_image : undefined,
         details: stringDetails,
         specifications: stringSpecs,
+        product_sites: stringProductSites,
+        status: stringStatus,
     }
 }
 

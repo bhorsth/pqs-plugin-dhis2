@@ -17,6 +17,8 @@ import {
     type PqsPluginRuntimeConfig,
 } from './pqs/runtimeConfig'
 import {
+    DEFAULT_FIELD_IDS,
+    PQS_FIELD_KEYS,
     deviceLabel,
     fieldIdMapFromConfig,
     getFieldUpdatesFromDevice,
@@ -232,8 +234,14 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
         }
     }, [])
 
+    const pqsCodeFieldId =
+        fieldIds[PQS_FIELD_KEYS.pqsCode] ?? DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.pqsCode]
+    const applianceImageFieldId =
+        fieldIds[PQS_FIELD_KEYS.applianceImage] ??
+        DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.applianceImage]
+
     const selectedCode =
-        values && typeof values === 'object' ? (values as any)[fieldIds.pqsCode] : undefined
+        values && typeof values === 'object' ? (values as any)[pqsCodeFieldId] : undefined
 
     const selectedLabel = useMemo(() => {
         if (selectedCode == null || selectedCode === '') return ''
@@ -313,7 +321,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                         if (!cached) imageCacheRef.current.set(imageUrl, { id, name })
                         if (!mountedRef.current) return
                         setFieldValue({
-                            fieldId: fieldIds.applianceImage,
+                            fieldId: applianceImageFieldId,
                             value: {
                                 value: id,
                                 name,
@@ -335,7 +343,7 @@ const Plugin = (rawProps: Partial<IFormFieldPluginProps> & Record<string, unknow
                 setImageError(null)
             }
         },
-        [setFieldValue, query, selectedCode, fieldIds, sessionRouteRunBase]
+        [setFieldValue, query, selectedCode, fieldIds, sessionRouteRunBase, applianceImageFieldId]
     )
 
     const clearBlurTimeout = () => {

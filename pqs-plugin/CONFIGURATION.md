@@ -50,23 +50,19 @@ If the key does not exist, the plugin will create a default object so admins can
   - This removes any dependency on instance-specific aliases (the old hard-coded defaults).
   - Use **tracked entity attribute UIDs** whenever possible.
 
-##### UID mapping (formerly hard-coded)
+##### Field mapping
 
-Set these keys in `pqsPlugin/config.fieldIds` to the **attribute UID** for each field in your Tracker program:
+The full mapping is defined in `src/pqs/pqsFieldMapping.ts` from the OpenFn PQS catalogue
+attribute mapping reference. Each entry has:
 
-- `pqsCode`: PQS code
-- `pqsCategory`: PQS category
-- `typeOfAppliance`: Type of appliance
-- `company`: Company
-- `manufacturedIn`: Manufactured in
-- `manufacturersReference`: Manufacturer's reference
-- `energySource`: Energy source
-- `vaccineStorageCapacityL`: Vaccine storage capacity (litres)
-- `vaccineGrossVolumeL`: Vaccine gross volume (litres)
-- `freezerGrossVolumeL`: Freezer gross volume (litres)
-- `applianceImage`: Appliance image (if you use an IMAGE attribute)
+- `key`: the plugin/DataStore mapping key.
+- `fieldId`: the default Capture `fieldId` / `IdFromPlugin`.
+- `sourcePath`: the PQS catalogue JSON source path.
 
-Example (shape only; fill in your own UIDs):
+Set keys in `pqsPlugin/config.fieldIds` only when your Capture `IdFromPlugin` values differ
+from the defaults in `pqsFieldMapping.ts`.
+
+Example (shape only):
 
 ```json
 {
@@ -76,17 +72,10 @@ Example (shape only; fill in your own UIDs):
   "catalogPath": "/prequal/sites/default/files/immunization_devices/json/catalogs/immunization_devices_catalogue.json",
   "enableImages": true,
   "fieldIds": {
-    "pqsCode": "<TEA_UID>",
-    "pqsCategory": "<TEA_UID>",
-    "typeOfAppliance": "<TEA_UID>",
-    "company": "<TEA_UID>",
-    "manufacturedIn": "<TEA_UID>",
-    "manufacturersReference": "<TEA_UID>",
-    "energySource": "<TEA_UID>",
-    "vaccineStorageCapacityL": "<TEA_UID>",
-    "vaccineGrossVolumeL": "<TEA_UID>",
-    "freezerGrossVolumeL": "<TEA_UID>",
-    "applianceImage": "<TEA_UID>"
+    "detailsImdPqsCode": "detailsImdPqsCode",
+    "detailsManufacturer": "detailsManufacturer",
+    "energySource": "energySource",
+    "mainImage": "mainImage"
   }
 }
 ```

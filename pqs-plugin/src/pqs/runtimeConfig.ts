@@ -1,3 +1,5 @@
+import { DEFAULT_FIELD_IDS } from './pqsFieldMapping'
+
 export type ApiVersionStrategy = 'auto' | 'fixed' | 'omit'
 
 export type PqsTrackerUidsConfig = {
@@ -48,20 +50,6 @@ export type PqsPluginRuntimeConfig = {
 
 export const DATASTORE_NAMESPACE = 'pqsPlugin'
 export const DATASTORE_KEY = 'config'
-
-const DEFAULT_FIELD_IDS: Record<string, string> = {
-    pqsCode: 'pqsCODE',
-    pqsCategory: 'pqsCAT',
-    typeOfAppliance: 'typeofAPP',
-    company: 'company',
-    manufacturedIn: 'manufIN',
-    manufacturersReference: 'manufREF',
-    energySource: 'energySOURCE',
-    vaccineStorageCapacityL: 'storageCAP',
-    vaccineGrossVolumeL: 'vaccGROSSV',
-    freezerGrossVolumeL: 'freezGROSSV',
-    applianceImage: 'imageURL',
-}
 
 export function defaultRuntimeConfig(): PqsPluginRuntimeConfig {
     return {

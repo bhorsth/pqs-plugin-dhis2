@@ -2,7 +2,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import Plugin from './Plugin.tsx'
 import { clearCatalogCache } from './pqs/loadCatalog'
-import { DEFAULT_FIELD_IDS } from './pqs/pqsFieldMapping'
+import { DEFAULT_FIELD_IDS, PQS_FIELD_KEYS } from './pqs/pqsFieldMapping'
 
 const minimalE003 = {
     id: 'E003-023',
@@ -146,16 +146,16 @@ describe('PQS Capture plugin', () => {
 
         expect(props.setFieldValue).toHaveBeenCalled()
         const firstCall = props.setFieldValue.mock.calls[0][0]
-        expect(firstCall.fieldId).toBe(DEFAULT_FIELD_IDS.pqsCode)
+        expect(firstCall.fieldId).toBe(DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.pqsCode])
         expect(firstCall.value).toBe('E003-023')
 
         const fieldIds = props.setFieldValue.mock.calls.map((c) => c[0].fieldId)
-        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.company)
-        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.freezerGrossVolumeL)
-        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.applianceImage)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.detailsManufacturer)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.freezersGrossVolume)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.applianceImage])
 
         const imageCalls = props.setFieldValue.mock.calls.filter(
-            (c) => c[0].fieldId === DEFAULT_FIELD_IDS.applianceImage
+            (c) => c[0].fieldId === DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.applianceImage]
         )
         expect(imageCalls.length).toBe(1)
         expect(imageCalls[0][0].value).toEqual(
@@ -195,13 +195,13 @@ describe('PQS Capture plugin', () => {
         document.body.removeChild(div)
 
         const fieldIds = props.setFieldValue.mock.calls.map((c) => c[0].fieldId)
-        expect(fieldIds).not.toContain(DEFAULT_FIELD_IDS.applianceImage)
+        expect(fieldIds).not.toContain(DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.applianceImage])
     })
 
     it('renders read-only summary in viewMode', async () => {
         const props = baseProps({
             viewMode: true,
-            values: { [DEFAULT_FIELD_IDS.pqsCode]: 'E003-023' },
+            values: { [DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.pqsCode]]: 'E003-023' },
         })
         const div = document.createElement('div')
         const root = createRoot(div)
