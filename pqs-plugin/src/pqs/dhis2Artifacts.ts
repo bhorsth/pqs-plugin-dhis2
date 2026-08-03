@@ -16,27 +16,23 @@ export function buildRouteRunBase(cfg: RouteManagerConfig): string {
 export type PqsSemanticFieldKey =
     | 'pqsCode'
     | 'pqsCategory'
-    | 'typeOfAppliance'
     | 'company'
     | 'manufacturedIn'
     | 'manufacturersReference'
     | 'energySource'
     | 'vaccineStorageCapacityL'
     | 'vaccineGrossVolumeL'
-    | 'freezerGrossVolumeL'
     | 'applianceImage'
 
 export const REQUIRED_SEMANTIC_FIELDS: readonly PqsSemanticFieldKey[] = [
     'pqsCode',
     'pqsCategory',
-    'typeOfAppliance',
     'company',
     'manufacturedIn',
     'manufacturersReference',
     'energySource',
     'vaccineStorageCapacityL',
     'vaccineGrossVolumeL',
-    'freezerGrossVolumeL',
     'applianceImage',
 ] as const
 

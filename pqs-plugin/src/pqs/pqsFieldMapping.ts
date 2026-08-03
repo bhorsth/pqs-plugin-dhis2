@@ -30,14 +30,12 @@ export const PQS_FIELD_KEYS = {
 export type PqsFieldIds = {
     pqsCode: string
     pqsCategory: string
-    typeOfAppliance: string
     company: string
     manufacturedIn: string
     manufacturersReference: string
     energySource: string
     vaccineStorageCapacityL: string
     vaccineGrossVolumeL: string
-    freezerGrossVolumeL: string
     applianceImage: string
 }
 
@@ -532,14 +530,12 @@ export const DEFAULT_FIELD_IDS: Record<string, string> = Object.fromEntries(
 const LEGACY_FIELD_KEY_ALIASES: Record<string, string> = {
     pqsCode: PQS_FIELD_KEYS.pqsCode,
     pqsCategory: 'detailsApplianceType',
-    typeOfAppliance: 'detailsProductDescription',
     company: 'detailsManufacturer',
     manufacturedIn: 'detailsCountryOfManufacture',
     manufacturersReference: 'detailsManufacturersReference',
     energySource: 'energySource',
     vaccineStorageCapacityL: 'refrigeratorVaccineStorageCapacity',
     vaccineGrossVolumeL: 'refrigeratorsGrossVolume',
-    freezerGrossVolumeL: 'freezersGrossVolume',
     applianceImage: PQS_FIELD_KEYS.applianceImage,
 }
 

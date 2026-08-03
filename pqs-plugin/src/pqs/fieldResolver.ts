@@ -74,7 +74,6 @@ export function resolveFieldAliases(args: {
                 names: ['pqs code', 'pqs', 'appliance pqs code'],
             },
             { semantic: 'pqsCategory', names: ['pqs category', 'category', 'pqs cat'] },
-            { semantic: 'typeOfAppliance', names: ['type of appliance', 'appliance type'] },
             { semantic: 'company', names: ['company', 'manufacturer'] },
             { semantic: 'manufacturedIn', names: ['manufactured in', 'country of manufacture'] },
             { semantic: 'manufacturersReference', names: ["manufacturer's reference", 'reference'] },
@@ -87,7 +86,6 @@ export function resolveFieldAliases(args: {
                 semantic: 'vaccineGrossVolumeL',
                 names: ['vaccine gross volume', 'gross volume'],
             },
-            { semantic: 'freezerGrossVolumeL', names: ['freezer gross volume'] },
             { semantic: 'applianceImage', wantType: 'IMAGE', names: ['image', 'appliance image'] },
         ])
 

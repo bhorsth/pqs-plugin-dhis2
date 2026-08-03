@@ -2,20 +2,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import Plugin from './Plugin.tsx'
 import { clearCatalogCache } from './pqs/loadCatalog'
-
-const FIELD_ALIASES = {
-    pqsCode: 'pqsCODE',
-    pqsCategory: 'pqsCAT',
-    typeOfAppliance: 'typeofAPP',
-    company: 'company',
-    manufacturedIn: 'manufIN',
-    manufacturersReference: 'manufREF',
-    energySource: 'energySOURCE',
-    vaccineStorageCapacityL: 'storageCAP',
-    vaccineGrossVolumeL: 'vaccGROSSV',
-    freezerGrossVolumeL: 'freezGROSSV',
-    applianceImage: 'imageURL',
-}
+import { DEFAULT_FIELD_IDS, PQS_FIELD_KEYS } from './pqs/pqsFieldMapping'
 
 const minimalE003 = {
     id: 'E003-023',
@@ -67,7 +54,16 @@ describe('PQS Capture plugin', () => {
 
     beforeEach(() => {
         clearCatalogCache()
-        delete process.env.VITE_PQS_CATALOG_URL
+        process.env.VITE_PQS_PLUGIN_CONFIG_JSON = JSON.stringify({
+            routeCode: 'whoProxy',
+            routeUid: 'S1CxnuYJebB',
+            apiVersionStrategy: 'fixed',
+            apiVersion: 42,
+            catalogPath:
+                '/prequal/sites/default/files/immunization_devices/json/catalogs/immunization_devices_catalogue.json',
+            enableImages: true,
+        })
+        process.env.VITE_PQS_CATALOG_URL = 'http://test.local/catalog.json'
         global.fetch = jest.fn().mockImplementation(async (url) => {
             const u = String(url)
             if (u === 'http://test.local/catalog.json') {
@@ -82,7 +78,7 @@ describe('PQS Capture plugin', () => {
                     json: async () => ({ e003: [minimalE003] }),
                 }
             }
-            if (u.startsWith('/api/42/routes/TESTROUTE01/run/')) {
+            if (u.startsWith('/api/42/routes/S1CxnuYJebB/run/')) {
                 return {
                     ok: true,
                     headers: {
@@ -119,15 +115,7 @@ describe('PQS Capture plugin', () => {
      * PQS code first (program rules), then other mapped TE attributes in one interaction.
      */
     it('calls setFieldValue starting with PQS code and includes mapped fields when a device is picked', async () => {
-        const props = baseProps({
-            pluginConfig: {
-                catalogUrl: 'http://test.local/catalog.json',
-                catalogBucketKey: 'e003',
-                enableImageUpload: true,
-                routeManager: { apiVersion: 42, routeId: 'TESTROUTE01' },
-                fieldAliases: FIELD_ALIASES,
-            },
-        })
+        const props = baseProps()
         const div = document.createElement('div')
         document.body.appendChild(div)
         const root = createRoot(div)
@@ -158,16 +146,16 @@ describe('PQS Capture plugin', () => {
 
         expect(props.setFieldValue).toHaveBeenCalled()
         const firstCall = props.setFieldValue.mock.calls[0][0]
-        expect(firstCall.fieldId).toBe(FIELD_ALIASES.pqsCode)
+        expect(firstCall.fieldId).toBe(DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.pqsCode])
         expect(firstCall.value).toBe('E003-023')
 
         const fieldIds = props.setFieldValue.mock.calls.map((c) => c[0].fieldId)
-        expect(fieldIds).toContain(FIELD_ALIASES.company)
-        expect(fieldIds).toContain(FIELD_ALIASES.freezerGrossVolumeL)
-        expect(fieldIds).toContain(FIELD_ALIASES.applianceImage)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.detailsManufacturer)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS.freezersGrossVolume)
+        expect(fieldIds).toContain(DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.applianceImage])
 
         const imageCalls = props.setFieldValue.mock.calls.filter(
-            (c) => c[0].fieldId === FIELD_ALIASES.applianceImage
+            (c) => c[0].fieldId === DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.applianceImage]
         )
         expect(imageCalls.length).toBe(1)
         expect(imageCalls[0][0].value).toEqual(
@@ -180,15 +168,7 @@ describe('PQS Capture plugin', () => {
             configurable: true,
             value: false,
         })
-        const props = baseProps({
-            pluginConfig: {
-                catalogUrl: 'http://test.local/catalog.json',
-                catalogBucketKey: 'e003',
-                enableImageUpload: true,
-                routeManager: { apiVersion: 42, routeId: 'TESTROUTE01' },
-                fieldAliases: FIELD_ALIASES,
-            },
-        })
+        const props = baseProps()
         const div = document.createElement('div')
         document.body.appendChild(div)
         const root = createRoot(div)
@@ -215,20 +195,13 @@ describe('PQS Capture plugin', () => {
         document.body.removeChild(div)
 
         const fieldIds = props.setFieldValue.mock.calls.map((c) => c[0].fieldId)
-        expect(fieldIds).not.toContain(FIELD_ALIASES.applianceImage)
+        expect(fieldIds).not.toContain(DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.applianceImage])
     })
 
     it('renders read-only summary in viewMode', async () => {
         const props = baseProps({
             viewMode: true,
-            pluginConfig: {
-                catalogUrl: 'http://test.local/catalog.json',
-                catalogBucketKey: 'e003',
-                enableImageUpload: true,
-                routeManager: { apiVersion: 42, routeId: 'TESTROUTE01' },
-                fieldAliases: FIELD_ALIASES,
-            },
-            values: { [FIELD_ALIASES.pqsCode]: 'E003-023' },
+            values: { [DEFAULT_FIELD_IDS[PQS_FIELD_KEYS.pqsCode]]: 'E003-023' },
         })
         const div = document.createElement('div')
         const root = createRoot(div)
@@ -240,83 +213,5 @@ describe('PQS Capture plugin', () => {
         const ro = div.querySelector('[data-test="pqs-readonly"]')
         expect(ro).toBeTruthy()
         expect(ro.textContent).toContain('E003-023')
-    })
-
-    it('auto-maps fields from fieldsMetadata when fieldAliases are missing', async () => {
-        const props = baseProps({
-            pluginConfig: {
-                catalogUrl: 'http://test.local/catalog.json',
-                catalogBucketKey: 'e003',
-                enableImageUpload: false,
-                routeManager: { apiVersion: 42, routeId: 'TESTROUTE01' },
-                fieldAliases: {}, // force auto-map
-            },
-            fieldsMetadata: {
-                pqsCodeAlias: {
-                    id: 'x',
-                    name: 'PQS code',
-                    shortName: 'PQS code',
-                    formName: 'PQS code',
-                    disabled: false,
-                    compulsory: false,
-                    description: '',
-                    type: 'TEXT',
-                    optionSet: null,
-                    displayInForms: true,
-                    displayInReports: false,
-                    icon: null,
-                    unique: null,
-                    searchable: true,
-                    url: undefined,
-                },
-                companyAlias: {
-                    id: 'y',
-                    name: 'Company',
-                    shortName: 'Company',
-                    formName: 'Company',
-                    disabled: false,
-                    compulsory: false,
-                    description: '',
-                    type: 'TEXT',
-                    optionSet: null,
-                    displayInForms: true,
-                    displayInReports: false,
-                    icon: null,
-                    unique: null,
-                    searchable: true,
-                    url: undefined,
-                },
-                imageAlias: {
-                    id: 'z',
-                    name: 'Appliance image',
-                    shortName: 'Image',
-                    formName: 'Appliance image',
-                    disabled: false,
-                    compulsory: false,
-                    description: '',
-                    type: 'IMAGE',
-                    optionSet: null,
-                    displayInForms: true,
-                    displayInReports: false,
-                    icon: null,
-                    unique: null,
-                    searchable: false,
-                    url: undefined,
-                },
-            },
-        })
-
-        const div = document.createElement('div')
-        document.body.appendChild(div)
-        const root = createRoot(div)
-        await act(async () => {
-            root.render(<Plugin {...props} />)
-        })
-        await flushPromises(80)
-
-        // With incomplete auto-map (only 3 semantic fields present), plugin should show a config error.
-        expect(div.textContent).toContain('Missing field mappings')
-
-        document.body.removeChild(div)
     })
 })
