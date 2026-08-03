@@ -1,48 +1,66 @@
 import type { PqsCatalogueDevice } from './pqsFieldMapping'
-import { apiBasePath, resolveDhis2BaseUrl, type PqsPluginRuntimeConfig } from './runtimeConfig'
-
-const E003_KEY = 'e003'
+import { buildRouteRunBase, type RouteManagerConfig } from './dhis2Artifacts'
 
 /**
- * DHIS2 Route Manager wildcard route base.
- *
- * This plugin proxies BOTH:
- * - WHO catalogue JSON (`catalogPath` from runtime config)
- * - device images (by appending the image URL pathname)
- *
- * The Route Manager route MUST be configured as a wildcard route, ending with `/**`,
- * e.g. `https://extranet.who.int/**`, otherwise DHIS2 will reject sub-paths after `/run`.
+ * Resolves a base URL for this browser/session.
+ * - Prefers injected `meta[name="dhis2-base-url"]` when present.
+ * - Falls back to app-shell env var when available.
+ * - In local dev, keeps `/api` requests same-origin so Vite proxy can forward.
  */
-export function routeRunBase(
-    config: PqsPluginRuntimeConfig,
-    routeUid: string
-): string {
-    const base = apiBasePath(config)
-    const resource = config.routeApiResource || 'routes'
-    return `${base}/${resource}/${routeUid}/run`
+export function resolveBaseUrl(): string {
+    if (typeof window === 'undefined') return ''
+
+    const metaBaseUrl = window.document
+        ?.querySelector?.('meta[name="dhis2-base-url"]')
+        ?.getAttribute?.('content')
+
+    const injectedBase =
+        metaBaseUrl && metaBaseUrl !== '__DHIS2_BASE_URL__'
+            ? new URL(metaBaseUrl, window.location.origin).href
+            : null
+
+    // In development, the app-shell injects DHIS2_BASE_URL via env vars
+    const shellBase = (globalThis as any)?.process?.env?.REACT_APP_DHIS2_BASE_URL
+    const envBase = typeof shellBase === 'string' && shellBase.length > 0 ? shellBase : null
+
+    const isLocalVite =
+        window.location.hostname === 'localhost' &&
+        (window.location.port === '3000' || window.location.port === '3001')
+
+    const devProxyBase = isLocalVite ? window.location.origin : null
+
+    return injectedBase ?? envBase ?? devProxyBase ?? window.location.origin
+}
+
+export function buildCatalogUrl(args: {
+    baseUrl: string
+    routeManager: RouteManagerConfig
+    catalogPath: string
+}): string {
+    const runBase = buildRouteRunBase(args.routeManager)
+    const p = args.catalogPath.startsWith('/') ? args.catalogPath : `/${args.catalogPath}`
+    return new URL(`${runBase}${p}`, args.baseUrl).href
 }
 
 /**
- * Resolves catalogue URL: optional `VITE_PQS_CATALOG_URL` (Jest/Node tooling),
- * otherwise `{baseUrl}{routeRunBase}{catalogPath}` in the browser.
+ * Resolves catalogue URL:
+ * - Optional `VITE_PQS_CATALOG_URL` (Jest/Node tooling)
+ * - Otherwise use Route Manager run base + `catalogPath`
  */
-export function resolveCatalogUrl(
-    config: PqsPluginRuntimeConfig,
-    routeUid: string
-): string {
+export function resolveCatalogUrl(args: {
+    routeManager: RouteManagerConfig
+    catalogPath: string
+}): string {
     const fromEnv = (globalThis as any)?.process?.env?.VITE_PQS_CATALOG_URL
     if (typeof fromEnv === 'string' && fromEnv.length > 0) {
         return fromEnv
     }
-    if (typeof window !== 'undefined') {
-        const base = resolveDhis2BaseUrl() ?? window.location.origin
-        const rr = routeRunBase(config, routeUid)
-        const path = config.catalogPath || ''
-        return new URL(`${rr}${path}`, base).href
-    }
-    const rr = routeRunBase(config, routeUid)
-    const path = config.catalogPath || ''
-    return `${rr}${path}`
+    const baseUrl = resolveBaseUrl()
+    return buildCatalogUrl({
+        baseUrl,
+        routeManager: args.routeManager,
+        catalogPath: args.catalogPath,
+    })
 }
 
 export type LoadCatalogResult =
@@ -106,9 +124,13 @@ function normalizeDevice(raw: unknown): PqsCatalogueDevice | null {
 }
 
 /**
- * Fetches the full WHO catalogue JSON, keeps only `e003` (PQS type E003), caches per URL in memory.
+ * Fetches WHO catalogue JSON, keeps only a configured bucket key, caches per URL in memory.
  */
-export async function loadE003Devices(catalogUrl: string): Promise<LoadCatalogResult> {
+export async function loadBucketDevices(args: {
+    catalogUrl: string
+    bucketKey: string
+}): Promise<LoadCatalogResult> {
+    const { catalogUrl, bucketKey } = args
     if (memoryDevices && memoryUrl === catalogUrl) {
         return { ok: true, devices: memoryDevices }
     }
@@ -144,11 +166,11 @@ export async function loadE003Devices(catalogUrl: string): Promise<LoadCatalogRe
         if (!isRecord(json)) {
             return { ok: false, error: 'Catalog JSON is not an object' }
         }
-        const bucket = json[E003_KEY]
+        const bucket = json[bucketKey]
         if (!Array.isArray(bucket)) {
             return {
                 ok: false,
-                error: `Catalog has no "${E003_KEY}" array`,
+                error: `Catalog has no "${bucketKey}" array`,
             }
         }
         const devices: PqsCatalogueDevice[] = []

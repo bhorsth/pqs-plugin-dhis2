@@ -23,6 +23,24 @@ export const PQS_FIELD_KEYS = {
     applianceImage: 'mainImage',
 } as const
 
+/**
+ * Semantic field keys for plugin configuration (Tracker Plugin Configurator / IdFromPlugin).
+ * Values are Capture field aliases, not DHIS2 UIDs.
+ */
+export type PqsFieldIds = {
+    pqsCode: string
+    pqsCategory: string
+    typeOfAppliance: string
+    company: string
+    manufacturedIn: string
+    manufacturersReference: string
+    energySource: string
+    vaccineStorageCapacityL: string
+    vaccineGrossVolumeL: string
+    freezerGrossVolumeL: string
+    applianceImage: string
+}
+
 export const PQS_FIELD_MAPPINGS: readonly PqsFieldMapping[] = [
     {
         key: 'detailsImdPqsCode',
